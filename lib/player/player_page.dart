@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../ble/ble_service.dart';
 import 'settings.dart';
+import '../workout/workout_settings.dart';
 
 class PlayerPage extends StatefulWidget {
   const PlayerPage({super.key});
@@ -22,6 +23,25 @@ class _PlayerPageState extends State<PlayerPage> {
   bool _ytReady = false; // IFrame player ready
   int? _ytState; // YouTube player state
   int? _ytError; // last onError code
+
+  // Debug logging flag
+  bool _debugLog = true;
+  void Function(String? message, {int? wrapWidth})? _origDebugPrint;
+
+  void _applyDebugLog() {
+    // Override Flutter's global debugPrint to silence logs when disabled
+    if (_debugLog) {
+      if (_origDebugPrint != null) {
+        debugPrint = _origDebugPrint!;
+        _origDebugPrint = null;
+      }
+    } else {
+      if (_origDebugPrint == null) {
+        _origDebugPrint = debugPrint;
+        debugPrint = (String? message, {int? wrapWidth}) {};
+      }
+    }
+  }
 
   // For JS snippets that are safe to run before player ready (e.g., set pending video ID)
   Future<void> _evalJsUnchecked(String code) async {
@@ -43,6 +63,11 @@ class _PlayerPageState extends State<PlayerPage> {
   @override
   void dispose() {
     _ytReady = false;
+    // Restore debugPrint if we modified it
+    if (_origDebugPrint != null) {
+      debugPrint = _origDebugPrint!;
+      _origDebugPrint = null;
+    }
     super.dispose();
   }
 
@@ -141,6 +166,8 @@ class _PlayerPageState extends State<PlayerPage> {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<PlayerSettings>();
+    // Ensure current debug flag is applied
+    _applyDebugLog();
 
     final html = '''
 <!doctype html><html>
@@ -500,84 +527,44 @@ setInterval(()=>{ try{ if(window.__pendingId && player && typeof player.cueVideo
                     ),
                   ),
                 const SizedBox(height: 8),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 8,
-                  children: [
-                    _NumberSetting(
-                      label: 'Pause <',
-                      value: settings.pauseBelow,
-                      min: 40,
-                      max: 100,
-                      onChanged: (v) {
-                        final nb = v;
-                        // keep ordering
-                        final nh =
-                            settings.normalHigh < nb ? nb : settings.normalHigh;
-                        final lh =
-                            settings.linearHigh < nh ? nh : settings.linearHigh;
-                        settings.update(
-                          pauseBelow: nb,
-                          normalHigh: nh,
-                          linearHigh: lh,
-                        );
-                      },
-                    ),
-                    _NumberSetting(
-                      label: '1.0x ≤',
-                      value: settings.normalHigh,
-                      min: 80,
-                      max: 140,
-                      onChanged: (v) {
-                        final nh = v;
-                        final nb =
-                            settings.pauseBelow > nh ? nh : settings.pauseBelow;
-                        final lh =
-                            settings.linearHigh < nh ? nh : settings.linearHigh;
-                        settings.update(
-                          pauseBelow: nb,
-                          normalHigh: nh,
-                          linearHigh: lh,
-                        );
-                      },
-                    ),
-                    _NumberSetting(
-                      label: '→2.0x @',
-                      value: settings.linearHigh,
-                      min: 120,
-                      max: 180,
-                      onChanged: (v) {
-                        final lh = v;
-                        final nh =
-                            settings.normalHigh > lh ? lh : settings.normalHigh;
-                        final nb =
-                            settings.pauseBelow > nh ? nh : settings.pauseBelow;
-                        settings.update(
-                          pauseBelow: nb,
-                          normalHigh: nh,
-                          linearHigh: lh,
-                        );
-                      },
-                    ),
-                    _DoubleSetting(
-                      label: 'EMA α',
-                      value: settings.emaAlpha,
-                      min: 0.05,
-                      max: 1.0,
-                      onChanged: (v) {
-                        settings.update(emaAlpha: v);
-                      },
-                    ),
-                    _NumberSetting(
-                      label: 'Hyst bpm',
-                      value: settings.hysteresisBpm,
-                      min: 0,
-                      max: 20,
-                      onChanged: (v) {
-                        settings.update(hysteresisBpm: v);
-                      },
-                    ),
-                  ],
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Debug log'),
+                  value: _debugLog,
+                  onChanged: (v) {
+                    setState(() {
+                      _debugLog = v;
+                      _applyDebugLog();
+                    });
+                  },
+                ),
+                Consumer<WorkoutSettings>(
+                  builder: (context, workout, _) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Workout Menu'),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: WorkoutType.values.map((t) {
+                            final selected = workout.selected == t;
+                            return ChoiceChip(
+                              label: Text(_labelFor(t)),
+                              selected: selected,
+                              onSelected: (_) async {
+                                await workout.selectWorkout(t);
+                                await workout.applyToPlayer(settings);
+                              },
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 8),
+                        Text('Applied thresholds: pause<${settings.pauseBelow}  1.0x≤${settings.normalHigh}  →2.0x@${settings.linearHigh}')
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 4),
                 const Text('注: 動画はユーザーが再生を開始してください（自動再生制限）。'),
@@ -610,74 +597,17 @@ String? _extractVideoId(String url) {
   return null;
 }
 
-class _NumberSetting extends StatelessWidget {
-  final String label;
-  final int value;
-  final int min;
-  final int max;
-  final ValueChanged<int> onChanged;
-  const _NumberSetting({
-    required this.label,
-    required this.value,
-    required this.min,
-    required this.max,
-    required this.onChanged,
-  });
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 220,
-      child: Row(
-        children: [
-          SizedBox(width: 70, child: Text(label)),
-          Expanded(
-            child: Slider(
-              value: value.toDouble(),
-              min: min.toDouble(),
-              max: max.toDouble(),
-              divisions: (max - min),
-              label: value.toString(),
-              onChanged: (v) => onChanged(v.round()),
-            ),
-          ),
-          SizedBox(width: 36, child: Text('$value')),
-        ],
-      ),
-    );
-  }
-}
-
-class _DoubleSetting extends StatelessWidget {
-  final String label;
-  final double value;
-  final double min;
-  final double max;
-  final ValueChanged<double> onChanged;
-  const _DoubleSetting({
-    required this.label,
-    required this.value,
-    required this.min,
-    required this.max,
-    required this.onChanged,
-  });
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 220,
-      child: Row(
-        children: [
-          SizedBox(width: 70, child: Text(label)),
-          Expanded(
-            child: Slider(
-              value: value,
-              min: min,
-              max: max,
-              onChanged: onChanged,
-            ),
-          ),
-          SizedBox(width: 50, child: Text(value.toStringAsFixed(2))),
-        ],
-      ),
-    );
+String _labelFor(WorkoutType t) {
+  switch (t) {
+    case WorkoutType.recovery:
+      return 'Recovery (Z1)';
+    case WorkoutType.fatBurn:
+      return 'Fat Burn (Z2)';
+    case WorkoutType.endurance:
+      return 'Endurance (Z2-3)';
+    case WorkoutType.tempo:
+      return 'Tempo (Z4)';
+    case WorkoutType.hiit:
+      return 'HIIT (Z5)';
   }
 }

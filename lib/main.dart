@@ -1,9 +1,12 @@
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'player/player_page.dart';
 import 'player/settings.dart';
+import 'workout/workout_settings.dart';
+import 'workout/workout_config_page.dart';
 
 import 'ble/ble_service.dart';
 
@@ -17,8 +20,11 @@ class HeartBeatApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => PlayerSettings()..load(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => PlayerSettings()..load()),
+        ChangeNotifierProvider(create: (_) => WorkoutSettings()..load()),
+      ],
       child: MaterialApp(
         title: 'Heart Beat',
         theme: ThemeData(
@@ -53,7 +59,7 @@ class _HeartRatePageState extends State<HeartRatePage> {
     setState(() => _status = '初期化中...');
 
     // Android runtime permissions
-    if (!Platform.isWindows) {
+    if (!kIsWeb && !Platform.isWindows) {
       await _ensureBlePermissions();
     }
 
@@ -85,15 +91,27 @@ class _HeartRatePageState extends State<HeartRatePage> {
 
   Future<void> _connect() async {
     setState(() => _status = 'スキャン中...');
-    final device = await BleService.instance.scanAndConnect();
-    setState(() => _status = device == null ? 'デバイス未検出' : '接続済み: ${device.platformName}');
+    final info = await BleService.instance.scanAndConnect();
+    setState(() => _status = info == null ? 'デバイス未検出' : '接続済み: ${info.platformName}');
   }
 
   @override
   Widget build(BuildContext context) {
+    final workout = context.watch<WorkoutSettings>();
     return Scaffold(
       appBar: AppBar(
         title: const Text('心拍数表示 (Android / Windows)'),
+        actions: [
+          IconButton(
+            tooltip: 'Workout Config',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const WorkoutConfigPage()),
+              );
+            },
+            icon: const Icon(Icons.settings_suggest),
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -132,6 +150,8 @@ class _HeartRatePageState extends State<HeartRatePage> {
               ),
             ),
             const SizedBox(height: 16),
+            Text('Workout: ${workout.selected.name}'),
+            const SizedBox(height: 8),
             FilledButton.icon(
               onPressed: _connect,
               icon: const Icon(Icons.favorite),
