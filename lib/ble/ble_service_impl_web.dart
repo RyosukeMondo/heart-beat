@@ -20,12 +20,16 @@ class WebBleService implements BleService {
     // Ensure Web Bluetooth is available
     final available = await FlutterWebBluetooth.instance.getAvailability();
     if (!available) {
-      throw StateError('Web Bluetooth is not available. Use Chrome/Edge over HTTPS or localhost.');
+      throw StateError(
+        'Web Bluetooth is not available. Use Chrome/Edge over HTTPS or localhost.',
+      );
     }
   }
 
   @override
-  Future<BleDeviceInfo?> scanAndConnect({Duration timeout = const Duration(seconds: 10)}) async {
+  Future<BleDeviceInfo?> scanAndConnect({
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
     await initializeIfNeeded();
 
     // Build request options to target Heart Rate Service
@@ -35,7 +39,6 @@ class WebBleService implements BleService {
 
     // Request device (requires a user gesture in the calling button)
     final device = await FlutterWebBluetooth.instance.requestDevice(opts);
-    if (device == null) return null;
 
     _device = device;
 
