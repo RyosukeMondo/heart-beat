@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 
 import 'ble_service.dart';
 import 'ble_types.dart';
@@ -38,13 +39,45 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
     
     // Check if Bluetooth is supported and enabled
     if (!await FlutterBluePlus.isSupported) {
-      throw const BleException(BleError.bluetoothNotSupported, 'Bluetooth not supported on this device');
+      throw const BleException(BleError.bluetoothNotSupported, 'このデバイスではBluetoothがサポートされていません');
     }
 
     // Check Bluetooth adapter state
     final adapterState = await FlutterBluePlus.adapterState.first;
     if (adapterState != BluetoothAdapterState.on) {
-      throw const BleException(BleError.bluetoothNotEnabled, 'Bluetooth is not enabled');
+      throw const BleException(BleError.bluetoothNotEnabled, 'Bluetoothが無効になっています。設定から有効にしてください。');
+    }
+
+    // Pre-check permissions on Android
+    if (Platform.isAndroid) {
+      await _preCheckPermissions();
+    }
+  }
+
+  /// Pre-checks permissions without requesting them
+  /// Provides early warning about permission issues
+  Future<void> _preCheckPermissions() async {
+    try {
+      final isAndroid12Plus = await _isAndroid12OrHigher();
+      
+      if (isAndroid12Plus) {
+        final scanStatus = await Permission.bluetoothScan.status;
+        final connectStatus = await Permission.bluetoothConnect.status;
+        
+        if (scanStatus.isDenied || connectStatus.isDenied) {
+          print('一部のBluetooth権限が未許可です。接続時に権限の許可を求めます。');
+        }
+      } else {
+        final bluetoothStatus = await Permission.bluetooth.status;
+        final locationStatus = await Permission.locationWhenInUse.status;
+        
+        if (bluetoothStatus.isDenied || locationStatus.isDenied) {
+          print('一部の権限が未許可です。接続時に権限の許可を求めます。');
+        }
+      }
+    } catch (e) {
+      // Don't fail initialization for permission pre-check issues
+      print('権限の事前確認中にエラーが発生しました: $e');
     }
   }
 
@@ -52,44 +85,85 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
   Future<bool> checkAndRequestPermissions() async {
     if (!Platform.isAndroid) return true; // iOS permissions handled by system
 
-    // Request necessary permissions for Android
-    Map<Permission, PermissionStatus> permissions = {};
-    
-    if (Platform.isAndroid) {
-      // Android 12+ requires specific BLE permissions
-      if (await _isAndroid12OrHigher()) {
+    try {
+      // Check Android version for proper permission handling
+      final isAndroid12Plus = await _isAndroid12OrHigher();
+      Map<Permission, PermissionStatus> permissions = {};
+      
+      if (isAndroid12Plus) {
+        // Android 12+ requires specific BLE permissions
         permissions = await [
           Permission.bluetoothScan,
           Permission.bluetoothConnect,
           Permission.bluetoothAdvertise,
         ].request();
+        
+        // Check if all modern permissions are granted
+        final deniedPermissions = <String>[];
+        if (permissions[Permission.bluetoothScan] != PermissionStatus.granted) {
+          deniedPermissions.add('BLUETOOTH_SCAN');
+        }
+        if (permissions[Permission.bluetoothConnect] != PermissionStatus.granted) {
+          deniedPermissions.add('BLUETOOTH_CONNECT');
+        }
+        if (permissions[Permission.bluetoothAdvertise] != PermissionStatus.granted) {
+          deniedPermissions.add('BLUETOOTH_ADVERTISE');
+        }
+        
+        if (deniedPermissions.isNotEmpty) {
+          throw BleException(
+            BleError.permissionDenied,
+            '権限が拒否されました: ${deniedPermissions.join(', ')}。設定からBluetooth権限を有効にしてください。'
+          );
+        }
       } else {
-        // Legacy permissions for older Android versions
+        // Legacy permissions for Android 11 and below
         permissions = await [
           Permission.bluetooth,
-          Permission.location,
           Permission.locationWhenInUse,
         ].request();
+        
+        // Check legacy permissions
+        final deniedPermissions = <String>[];
+        if (permissions[Permission.bluetooth] != PermissionStatus.granted) {
+          deniedPermissions.add('BLUETOOTH');
+        }
+        if (permissions[Permission.locationWhenInUse] != PermissionStatus.granted) {
+          deniedPermissions.add('LOCATION');
+        }
+        
+        if (deniedPermissions.isNotEmpty) {
+          throw BleException(
+            BleError.permissionDenied,
+            '権限が拒否されました: ${deniedPermissions.join(', ')}。設定からBluetooth及び位置情報権限を有効にしてください。'
+          );
+        }
       }
+      
+      return true;
+    } catch (e) {
+      if (e is BleException) rethrow;
+      throw BleException(
+        BleError.permissionDenied, 
+        '権限の確認中にエラーが発生しました: ${e.toString()}'
+      );
     }
-
-    // Check if all permissions are granted
-    for (final status in permissions.values) {
-      if (status != PermissionStatus.granted) {
-        throw const BleException(BleError.permissionDenied, 'Bluetooth permissions not granted');
-      }
-    }
-
-    return true;
   }
 
   Future<bool> _isAndroid12OrHigher() async {
     if (!Platform.isAndroid) return false;
+    
     try {
-      // This is a simple check - in production you might want to use device_info_plus
-      return true; // Assume modern Android for safety
+      final deviceInfo = DeviceInfoPlugin();
+      final androidInfo = await deviceInfo.androidInfo;
+      
+      // Android 12 is API level 31
+      return androidInfo.version.sdkInt >= 31;
     } catch (e) {
-      return false;
+      // If device info fails, assume modern Android for safety
+      // This ensures we request the more restrictive permissions
+      print('Failed to get Android version info, assuming Android 12+: $e');
+      return true;
     }
   }
 
@@ -149,7 +223,7 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
 
       if (targetDevice == null) {
         updateConnectionState(BleConnectionState.idle);
-        throw const BleException(BleError.deviceNotFound, 'No heart rate devices found');
+        throw const BleException(BleError.deviceNotFound, 'デバイス未検出');
       }
 
       // Connect to the device
