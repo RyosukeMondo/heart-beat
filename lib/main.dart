@@ -1,14 +1,15 @@
+import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
+
 import 'player/player_page.dart';
 import 'player/settings.dart';
 import 'workout/workout_settings.dart';
 import 'workout/workout_config_page.dart';
-
 import 'ble/ble_service.dart';
+import 'ble/ble_types.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -45,62 +46,254 @@ class HeartRatePage extends StatefulWidget {
 }
 
 class _HeartRatePageState extends State<HeartRatePage> {
-  String _status = '準備完了';
+  late final BleService _bleService;
+  StreamSubscription<int>? _heartRateSubscription;
+  StreamSubscription<BleConnectionState>? _connectionStateSubscription;
+  
+  BleConnectionState _connectionState = BleConnectionState.idle;
   int? _latestBpm;
-  Stream<int>? _bpmStream;
+  DeviceInfo? _connectedDevice;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _init();
+    _bleService = BleService();
+    _initializeBleService();
   }
 
-  Future<void> _init() async {
-    setState(() => _status = '初期化中...');
+  @override
+  void dispose() {
+    _heartRateSubscription?.cancel();
+    _connectionStateSubscription?.cancel();
+    _bleService.dispose();
+    super.dispose();
+  }
 
-    // Android runtime permissions
-    if (!kIsWeb && !Platform.isWindows) {
-      await _ensureBlePermissions();
+  Future<void> _initializeBleService() async {
+    try {
+      setState(() {
+        _connectionState = BleConnectionState.idle;
+        _errorMessage = null;
+      });
+
+      // Initialize the BLE service
+      await _bleService.initializeIfNeeded();
+
+      // Set up stream subscriptions
+      _setupStreamSubscriptions();
+
+      setState(() {
+        _connectionState = BleConnectionState.idle;
+      });
+    } catch (e) {
+      setState(() {
+        _connectionState = BleConnectionState.error;
+        _errorMessage = _getBleErrorMessage(e);
+      });
     }
-
-    // Initialize Windows backend if needed happens in service
-    await BleService.instance.initializeIfNeeded();
-
-    setState(() => _status = '接続待機');
-
-    // Prepare Stream
-    setState(() {
-      _bpmStream = BleService.instance.heartRateStream;
-    });
   }
 
-  Future<void> _ensureBlePermissions() async {
-    if (Platform.isAndroid) {
-      // Android 12+ specific BLE permissions
-      final scan = await Permission.bluetoothScan.request();
-      final connect = await Permission.bluetoothConnect.request();
-      // On some devices, location may still be needed for legacy stacks
-      if (await Permission.locationWhenInUse.isDenied) {
-        await Permission.locationWhenInUse.request();
-      }
-      if (scan.isDenied || connect.isDenied) {
-        setState(() => _status = '権限が拒否されました');
-      }
+  void _setupStreamSubscriptions() {
+    // Subscribe to heart rate data stream
+    _heartRateSubscription?.cancel();
+    _heartRateSubscription = _bleService.heartRateStream.listen(
+      (heartRate) {
+        setState(() {
+          _latestBpm = heartRate;
+        });
+      },
+      onError: (error) {
+        print('Heart rate stream error: $error');
+      },
+    );
+
+    // Subscribe to connection state changes
+    _connectionStateSubscription?.cancel();
+    _connectionStateSubscription = _bleService.connectionStateStream.listen(
+      (state) {
+        setState(() {
+          _connectionState = state;
+          _connectedDevice = _bleService.currentDevice;
+          
+          // Clear error message on successful connection
+          if (state == BleConnectionState.connected) {
+            _errorMessage = null;
+          }
+        });
+      },
+      onError: (error) {
+        print('Connection state stream error: $error');
+      },
+    );
+  }
+
+  String _getBleErrorMessage(dynamic error) {
+    if (error is BleException) {
+      return error.localizedMessage;
+    }
+    return error.toString();
+  }
+
+  String get _statusText {
+    if (_errorMessage != null) {
+      return _errorMessage!;
+    }
+    
+    switch (_connectionState) {
+      case BleConnectionState.idle:
+        return !_bleService.isSupported ? 'Bluetooth未対応' : '接続待機';
+      case BleConnectionState.scanning:
+        return 'デバイスをスキャン中...';
+      case BleConnectionState.connecting:
+        return '接続中...';
+      case BleConnectionState.connected:
+        return '接続済み: ${_connectedDevice?.platformName ?? "Unknown Device"}';
+      case BleConnectionState.disconnected:
+        return '切断されました';
+      case BleConnectionState.error:
+        return 'エラーが発生しました';
     }
   }
 
   Future<void> _connect() async {
-    setState(() => _status = 'スキャン中...');
-    final info = await BleService.instance.scanAndConnect();
-    setState(() => _status = info == null ? 'デバイス未検出' : '接続済み: ${info.platformName}');
+    try {
+      setState(() => _errorMessage = null);
+      
+      // Check and request permissions if needed
+      final permissionsGranted = await _bleService.checkAndRequestPermissions();
+      if (!permissionsGranted) {
+        setState(() {
+          _errorMessage = 'Bluetooth権限が必要です';
+          _connectionState = BleConnectionState.error;
+        });
+        return;
+      }
+
+      // Start scanning and connecting
+      final deviceInfo = await _bleService.scanAndConnect(
+        timeout: const Duration(seconds: 15),
+      );
+
+      if (deviceInfo == null) {
+        setState(() {
+          _errorMessage = '心拍センサーが見つかりませんでした';
+          _connectionState = BleConnectionState.idle;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = _getBleErrorMessage(e);
+        _connectionState = BleConnectionState.error;
+      });
+    }
+  }
+
+  Future<void> _disconnect() async {
+    try {
+      await _bleService.disconnect();
+    } catch (e) {
+      setState(() {
+        _errorMessage = _getBleErrorMessage(e);
+      });
+    }
+  }
+
+  Widget _buildHeartRateDisplay() {
+    final bpm = _latestBpm;
+    final isConnected = _connectionState == BleConnectionState.connected;
+    
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            bpm != null ? '$bpm' : '--',
+            style: TextStyle(
+              fontSize: 72,
+              fontWeight: FontWeight.bold,
+              color: isConnected ? Colors.red : Colors.grey,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'BPM',
+            style: TextStyle(
+              fontSize: 16,
+              color: isConnected ? Colors.black87 : Colors.grey,
+            ),
+          ),
+          if (_connectedDevice != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.green.withOpacity(0.3)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.bluetooth_connected, color: Colors.green, size: 16),
+                  const SizedBox(width: 4),
+                  Text(
+                    _connectedDevice!.platformName,
+                    style: const TextStyle(
+                      color: Colors.green,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConnectionButton() {
+    final isConnected = _connectionState == BleConnectionState.connected;
+    final isConnecting = _connectionState == BleConnectionState.connecting || 
+                        _connectionState == BleConnectionState.scanning;
+
+    if (isConnected) {
+      return FilledButton.icon(
+        onPressed: isConnecting ? null : _disconnect,
+        icon: const Icon(Icons.bluetooth_disabled),
+        label: const Text('切断'),
+        style: FilledButton.styleFrom(
+          backgroundColor: Colors.red,
+          foregroundColor: Colors.white,
+        ),
+      );
+    }
+
+    return FilledButton.icon(
+      onPressed: isConnecting ? null : _connect,
+      icon: isConnecting 
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.favorite),
+      label: Text(isConnecting ? 'スキャン中...' : '心拍センサーに接続'),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final workout = context.watch<WorkoutSettings>();
+    final platformName = kIsWeb ? "Web" : Platform.isWindows ? "Windows" : "Mobile";
+    
     return Scaffold(
       appBar: AppBar(
-        title: const Text('心拍数表示 (Android / Windows)'),
+        title: Text('心拍数表示 ($platformName)'),
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
           IconButton(
             tooltip: 'Workout Config',
@@ -118,46 +311,63 @@ class _HeartRatePageState extends State<HeartRatePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('状態: $_status'),
-            const SizedBox(height: 16),
-            Expanded(
-              child: Center(
-                child: _bpmStream == null
-                    ? const Text('初期化中...')
-                    : StreamBuilder<int>(
-                        stream: _bpmStream,
-                        builder: (context, snapshot) {
-                          if (snapshot.hasData) {
-                            _latestBpm = snapshot.data;
-                          }
-                          final bpm = snapshot.data ?? _latestBpm;
-                          return FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  bpm != null ? '$bpm' : '--',
-                                  style: const TextStyle(fontSize: 72, fontWeight: FontWeight.bold),
-                                ),
-                                const SizedBox(height: 8),
-                                const Text('BPM'),
-                              ],
-                            ),
-                          );
-                        },
+            // Status display
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  children: [
+                    Icon(
+                      _getStatusIcon(),
+                      color: _getStatusColor(),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '状態: $_statusText',
+                        style: TextStyle(
+                          color: _getStatusColor(),
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
+                    ),
+                  ],
+                ),
               ),
             ),
+            
             const SizedBox(height: 16),
-            Text('Workout: ${workout.selected.name}'),
-            const SizedBox(height: 8),
-            FilledButton.icon(
-              onPressed: _connect,
-              icon: const Icon(Icons.favorite),
-              label: const Text('Coospo HW9 に接続'),
+
+            // Heart rate display
+            Expanded(
+              child: Center(child: _buildHeartRateDisplay()),
             ),
+
+            const SizedBox(height: 16),
+
+            // Workout info
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  children: [
+                    const Icon(Icons.fitness_center, color: Colors.orange),
+                    const SizedBox(width: 8),
+                    Text('ワークアウト: ${workout.selected.name}'),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Connection button
+            _buildConnectionButton(),
+
             const SizedBox(height: 8),
+
+            // YouTube player button
             OutlinedButton.icon(
               onPressed: () {
                 Navigator.of(context).push(
@@ -171,5 +381,40 @@ class _HeartRatePageState extends State<HeartRatePage> {
         ),
       ),
     );
+  }
+
+  IconData _getStatusIcon() {
+    switch (_connectionState) {
+      case BleConnectionState.idle:
+        return Icons.bluetooth;
+      case BleConnectionState.scanning:
+        return Icons.bluetooth_searching;
+      case BleConnectionState.connecting:
+        return Icons.bluetooth_connected;
+      case BleConnectionState.connected:
+        return Icons.bluetooth_connected;
+      case BleConnectionState.disconnected:
+        return Icons.bluetooth_disabled;
+      case BleConnectionState.error:
+        return Icons.error;
+    }
+  }
+
+  Color _getStatusColor() {
+    if (_errorMessage != null) return Colors.red;
+    
+    switch (_connectionState) {
+      case BleConnectionState.idle:
+        return Colors.grey;
+      case BleConnectionState.scanning:
+      case BleConnectionState.connecting:
+        return Colors.orange;
+      case BleConnectionState.connected:
+        return Colors.green;
+      case BleConnectionState.disconnected:
+        return Colors.grey;
+      case BleConnectionState.error:
+        return Colors.red;
+    }
   }
 }
