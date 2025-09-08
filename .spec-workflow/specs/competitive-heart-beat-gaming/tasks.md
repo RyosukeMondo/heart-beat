@@ -96,7 +96,7 @@
   - _Leverage: lib/competitive/games/base_game.dart, lib/workout/workout_config.dart zone logic_
   - _Requirements: 5.2_
 
-- [ ] 13. Implement endurance game
+- [x] 13. Implement endurance game
   - File: lib/competitive/games/endurance_game.dart
   - Create endurance game extending BaseGame with sustained performance tracking
   - Add zone maintenance scoring and elimination logic
