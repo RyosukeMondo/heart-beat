@@ -8,6 +8,8 @@ import 'player/player_page.dart';
 import 'player/settings.dart';
 import 'workout/workout_settings.dart';
 import 'workout/workout_config_page.dart';
+import 'auth/auth_settings.dart';
+import 'auth/login_page.dart';
 import 'ble/ble_service.dart';
 import 'ble/ble_types.dart';
 
@@ -25,6 +27,7 @@ class HeartBeatApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => PlayerSettings()..load()),
         ChangeNotifierProvider(create: (_) => WorkoutSettings()..load()),
+        ChangeNotifierProvider(create: (_) => AuthSettings()),
       ],
       child: MaterialApp(
         title: 'Heart Beat',
@@ -296,6 +299,24 @@ class _HeartRatePageState extends State<HeartRatePage> {
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
           IconButton(
+            tooltip: 'Authentication',
+            onPressed: () {
+              final authSettings = context.read<AuthSettings>();
+              if (authSettings.isAuthenticated) {
+                _showUserMenu(context);
+              } else {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const LoginPage()),
+                );
+              }
+            },
+            icon: Icon(
+              context.watch<AuthSettings>().isAuthenticated 
+                  ? Icons.person 
+                  : Icons.person_outline,
+            ),
+          ),
+          IconButton(
             tooltip: 'Workout Config',
             onPressed: () {
               Navigator.of(context).push(
@@ -345,6 +366,33 @@ class _HeartRatePageState extends State<HeartRatePage> {
             ),
 
             const SizedBox(height: 16),
+
+            // User status info
+            Consumer<AuthSettings>(
+              builder: (context, authSettings, _) => Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    children: [
+                      Icon(
+                        authSettings.isAuthenticated ? Icons.person : Icons.person_outline,
+                        color: authSettings.isAuthenticated ? Colors.green : Colors.grey,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          authSettings.isAuthenticated 
+                              ? 'User: ${authSettings.displayName} (${authSettings.competitiveLevel})'
+                              : 'Not signed in (Guest mode)',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 8),
 
             // Workout info
             Card(
@@ -416,5 +464,67 @@ class _HeartRatePageState extends State<HeartRatePage> {
       case BleConnectionState.error:
         return Colors.red;
     }
+  }
+
+  void _showUserMenu(BuildContext context) {
+    final authSettings = context.read<AuthSettings>();
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.person),
+              title: Text(authSettings.displayName),
+              subtitle: Text(authSettings.userEmail),
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.sports_esports),
+              title: const Text('Competitive Level'),
+              subtitle: Text(authSettings.competitiveLevel),
+              trailing: Text(authSettings.winRatePercentage),
+            ),
+            if (authSettings.hasPlayedGames) ...[
+              ListTile(
+                leading: const Icon(Icons.timer),
+                title: const Text('Total Game Time'),
+                subtitle: Text(_formatDuration(authSettings.estimatedTotalGameTime)),
+              ),
+            ],
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: () async {
+                Navigator.pop(context);
+                await authSettings.logout();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Logged out successfully')),
+                  );
+                }
+              },
+              icon: const Icon(Icons.logout),
+              label: const Text('Logout'),
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatDuration(Duration duration) {
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes % 60;
+    if (hours > 0) {
+      return '${hours}h ${minutes}m';
+    }
+    return '${minutes}m';
   }
 }
