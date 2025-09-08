@@ -40,7 +40,7 @@
   - _Leverage: lib/workout/workout_config_page.dart UI patterns_
   - _Requirements: 1.5_
 
-- [ ] 6. Integrate authentication into main application
+- [x] 6. Integrate authentication into main application
   - File: lib/main.dart (modify existing)
   - Add AuthSettings to MultiProvider configuration
   - Implement authentication check and routing logic
@@ -48,7 +48,7 @@
   - _Leverage: existing MultiProvider setup in lib/main.dart_
   - _Requirements: 1.1, 1.4_
 
-- [ ] 7. Create competitive gaming data models
+- [x] 7. Create competitive gaming data models
   - File: lib/competitive/models/player_data.dart
   - Define PlayerData, GameSession, GameResult, and GameConfig classes
   - Add JSON serialization for network transmission
