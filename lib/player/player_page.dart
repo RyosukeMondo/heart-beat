@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:provider/provider.dart';
@@ -23,6 +24,13 @@ class _PlayerPageState extends State<PlayerPage> {
   bool _ytReady = false; // IFrame player ready
   int? _ytState; // YouTube player state
   int? _ytError; // last onError code
+
+  // Heart rate monitoring enhancements
+  int? _currentBpm;
+  bool _bleConnected = false;
+  String? _deviceName;
+  DateTime? _lastHeartRateUpdate;
+  bool _showOverlay = true;
 
   // Debug logging flag
   bool _debugLog = true;
@@ -75,6 +83,14 @@ class _PlayerPageState extends State<PlayerPage> {
     if (!mounted) {
       return;
     }
+    
+    // Update heart rate monitoring state
+    setState(() {
+      _currentBpm = bpm;
+      _bleConnected = true;
+      _lastHeartRateUpdate = DateTime.now();
+    });
+    
     if (!_ytReady) {
       debugPrint('[BPM] ytReady=N skip bpm=$bpm');
       return;
@@ -161,6 +177,32 @@ class _PlayerPageState extends State<PlayerPage> {
     if (bpm >= high) return 2.0;
     final t = (bpm - low) / (high - low);
     return 1.0 + t.clamp(0, 1);
+  }
+
+  void _checkConnectionStatus() {
+    if (_lastHeartRateUpdate != null) {
+      final timeSinceLastUpdate = DateTime.now().difference(_lastHeartRateUpdate!);
+      if (timeSinceLastUpdate.inSeconds > 10) {
+        // Consider disconnected if no updates for 10 seconds
+        setState(() {
+          _bleConnected = false;
+          _deviceName = null;
+        });
+      }
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Check connection status periodically
+    Timer.periodic(const Duration(seconds: 5), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      _checkConnectionStatus();
+    });
   }
 
   @override
@@ -280,7 +322,9 @@ setInterval(()=>{ try{ if(window.__pendingId && player && typeof player.cueVideo
       body: Column(
         children: [
           Expanded(
-            child: InAppWebView(
+            child: Stack(
+              children: [
+                InAppWebView(
               initialData: InAppWebViewInitialData(
                 data: html,
                 baseUrl: WebUri('https://localhost/'),
@@ -447,6 +491,12 @@ setInterval(()=>{ try{ if(window.__pendingId && player && typeof player.cueVideo
                 disableHorizontalScroll: true,
                 transparentBackground: true,
               ),
+                ),
+                // Heart Rate Overlay
+                if (_showOverlay) _buildHeartRateOverlay(),
+                // Connection Status Overlay
+                _buildConnectionStatusOverlay(),
+              ],
             ),
           ),
           const Divider(height: 1),
@@ -543,25 +593,85 @@ setInterval(()=>{ try{ if(window.__pendingId && player && typeof player.cueVideo
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Workout Menu'),
-                        const SizedBox(height: 6),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: WorkoutType.values.map((t) {
-                            final selected = workout.selected == t;
-                            return ChoiceChip(
-                              label: Text(_labelFor(t)),
-                              selected: selected,
-                              onSelected: (_) async {
-                                await workout.selectWorkout(t);
-                                await workout.applyToPlayer(settings);
-                              },
-                            );
-                          }).toList(),
+                        Row(
+                          children: [
+                            const Expanded(child: Text('Workout Configuration')),
+                            Switch.adaptive(
+                              value: _showOverlay,
+                              onChanged: (value) => setState(() => _showOverlay = value),
+                            ),
+                            const Text('Overlay'),
+                          ],
                         ),
+                        const SizedBox(height: 6),
+                        
+                        // Current workout display
+                        if (workout.isUsingCustomConfig) ...[
+                          Card(
+                            color: Theme.of(context).colorScheme.primaryContainer,
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 16,
+                                    height: 16,
+                                    decoration: BoxDecoration(
+                                      color: Color(int.parse(
+                                        workout.selectedCustomConfig!.colorCode.substring(1),
+                                        radix: 16,
+                                      ) + 0xFF000000),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          '${workout.selectedCustomConfig!.name}',
+                                          style: const TextStyle(fontWeight: FontWeight.bold),
+                                        ),
+                                        Text(
+                                          '${workout.selectedCustomConfig!.targetZoneText} • ${workout.selectedCustomConfig!.durationText}',
+                                          style: const TextStyle(fontSize: 12),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  IconButton(
+                                    onPressed: () => workout.clearCustomWorkoutSelection(),
+                                    icon: const Icon(Icons.clear),
+                                    tooltip: 'Clear custom workout',
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ] else ...[
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: WorkoutType.values.map((t) {
+                              final selected = workout.selected == t;
+                              return ChoiceChip(
+                                label: Text(_labelFor(t)),
+                                selected: selected,
+                                onSelected: (_) async {
+                                  await workout.selectWorkout(t);
+                                  await workout.applyToPlayer(settings);
+                                },
+                              );
+                            }).toList(),
+                          ),
+                        ],
+                        
                         const SizedBox(height: 8),
-                        Text('Applied thresholds: pause<${settings.pauseBelow}  1.0x≤${settings.normalHigh}  →2.0x@${settings.linearHigh}')
+                        Text(
+                          'Applied thresholds: pause<${settings.pauseBelow}  1.0x≤${settings.normalHigh}  →2.0x@${settings.linearHigh}',
+                          style: const TextStyle(fontSize: 11),
+                        )
                       ],
                     );
                   },
@@ -596,6 +706,163 @@ String? _extractVideoId(String url) {
   } catch (_) {}
   return null;
 }
+
+  Widget _buildHeartRateOverlay() {
+    final workoutSettings = context.watch<WorkoutSettings>();
+    final (lower, upper) = workoutSettings.targetRange();
+    
+    return Positioned(
+      top: 16,
+      left: 16,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.7),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: _getHeartRateColor(lower, upper),
+            width: 2,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.favorite,
+                  color: _getHeartRateColor(lower, upper),
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '${_currentBpm ?? '--'} BPM',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            if (_ema != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                'EMA: ${_ema!.toStringAsFixed(1)}',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+            const SizedBox(height: 4),
+            Text(
+              'Target: $lower-$upper',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
+              ),
+            ),
+            if (workoutSettings.isUsingCustomConfig) ...[
+              const SizedBox(height: 4),
+              Text(
+                workoutSettings.selectedCustomConfig!.name,
+                style: TextStyle(
+                  color: Color(int.parse(
+                    workoutSettings.selectedCustomConfig!.colorCode.substring(1), 
+                    radix: 16,
+                  ) + 0xFF000000),
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildConnectionStatusOverlay() {
+    return Positioned(
+      top: 16,
+      right: 16,
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.7),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _bleConnected ? Icons.bluetooth_connected : Icons.bluetooth_disabled,
+                  color: _bleConnected ? Colors.blue : Colors.red,
+                  size: 16,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  _bleConnected ? 'Connected' : 'Disconnected',
+                  style: TextStyle(
+                    color: _bleConnected ? Colors.blue : Colors.red,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+            if (_deviceName != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                _deviceName!,
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 10,
+                ),
+              ),
+            ],
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Rate: ${_currentPlaybackRate?.toStringAsFixed(2) ?? '--'}x',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 10,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _ytReady ? 'Ready' : 'Loading...',
+                  style: TextStyle(
+                    color: _ytReady ? Colors.green : Colors.orange,
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _getHeartRateColor(int lower, int upper) {
+    if (_currentBpm == null) return Colors.grey;
+    
+    if (_currentBpm! < lower) {
+      return Colors.blue; // Below target zone
+    } else if (_currentBpm! > upper) {
+      return Colors.red; // Above target zone
+    } else {
+      return Colors.green; // In target zone
+    }
+  }
 
 String _labelFor(WorkoutType t) {
   switch (t) {
