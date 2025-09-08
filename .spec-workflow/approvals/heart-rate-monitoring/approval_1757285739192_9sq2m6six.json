@@ -1,0 +1,27 @@
+{
+  "id": "approval_1757285739192_9sq2m6six",
+  "title": "Heart Rate Monitoring Requirements Review",
+  "filePath": ".spec-workflow/specs/heart-rate-monitoring/requirements.md",
+  "type": "document",
+  "status": "needs-revision",
+  "createdAt": "2025-09-07T22:55:39.192Z",
+  "category": "spec",
+  "categoryName": "heart-rate-monitoring",
+  "response": "Feedback Summary (1 comments):\n\nSpecific Text Comments:\n1. \"「Coospo HW9 接続」\": no need to limit supported device only coospo HW9. think as just BLE supported device.\n",
+  "annotations": "{\n  \"decision\": \"needs-revision\",\n  \"comments\": [\n    {\n      \"type\": \"selection\",\n      \"comment\": \"no need to limit supported device only coospo HW9. think as just BLE supported device.\",\n      \"timestamp\": \"2025-09-07T23:00:44.785Z\",\n      \"selectedText\": \"「Coospo HW9 接続」\",\n      \"highlightColor\": {\n        \"bg\": \"rgba(255, 235, 59, 0.3)\",\n        \"border\": \"#FFEB3B\",\n        \"name\": \"#ffeb3b\"\n      },\n      \"id\": \"comment_1757286044785_2va6vngbf\"\n    }\n  ],\n  \"summary\": \"Feedback Summary (1 comments):\\n\\nSpecific Text Comments:\\n1. \\\"「Coospo HW9 接続」\\\": no need to limit supported device only coospo HW9. think as just BLE supported device.\\n\",\n  \"timestamp\": \"2025-09-07T23:01:44.841Z\"\n}",
+  "respondedAt": "2025-09-07T23:01:44.862Z",
+  "comments": [
+    {
+      "type": "selection",
+      "comment": "no need to limit supported device only coospo HW9. think as just BLE supported device.",
+      "timestamp": "2025-09-07T23:00:44.785Z",
+      "selectedText": "「Coospo HW9 接続」",
+      "highlightColor": {
+        "bg": "rgba(255, 235, 59, 0.3)",
+        "border": "#FFEB3B",
+        "name": "#ffeb3b"
+      },
+      "id": "comment_1757286044785_2va6vngbf"
+    }
+  ]
+}
