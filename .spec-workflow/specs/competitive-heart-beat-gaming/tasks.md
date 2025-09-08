@@ -88,7 +88,7 @@
   - _Leverage: lib/competitive/games/base_game.dart, existing heart rate monitoring_
   - _Requirements: 4.2_
 
-- [ ] 12. Implement resilience game
+- [x] 12. Implement resilience game
   - File: lib/competitive/games/resilience_game.dart
   - Create resilience game extending BaseGame with stability scoring
   - Add heart rate variability tracking and stability point calculation
