@@ -80,7 +80,7 @@
   - _Leverage: lib/ble/heart_rate_parser.dart data processing patterns_
   - _Requirements: 4.1, 5.1, 6.1_
 
-- [ ] 11. Implement instant response game
+- [x] 11. Implement instant response game
   - File: lib/competitive/games/instant_response_game.dart
   - Create 瞬発力 game extending BaseGame with stimulus-response logic
   - Add heart rate change detection and reaction time scoring
