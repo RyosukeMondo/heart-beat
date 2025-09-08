@@ -104,7 +104,7 @@
   - _Leverage: lib/competitive/games/base_game.dart, existing heart rate zone calculations_
   - _Requirements: 6.2_
 
-- [ ] 14. Create game engine service
+- [x] 14. Create game engine service
   - File: lib/competitive/game_engine_service.dart
   - Implement GameEngineService to orchestrate game sessions and scoring
   - Add game type selection, session management, and result calculation
