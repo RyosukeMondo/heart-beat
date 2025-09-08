@@ -20,9 +20,22 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
   StreamSubscription<List<ScanResult>>? _scanSubscription;
   
   Timer? _reconnectTimer;
+  Timer? _connectionHealthTimer;
+  Timer? _retryTimer;
   bool _disposed = false;
+  bool _isReconnecting = false;
   int _reconnectAttempts = 0;
-  static const int _maxReconnectAttempts = 5;
+  int _consecutiveErrors = 0;
+  DateTime? _lastSuccessfulConnection;
+  DateTime? _lastErrorTime;
+  
+  // Error recovery configuration
+  static const int _maxReconnectAttempts = 8;
+  static const int _maxConsecutiveErrors = 10;
+  static const Duration _baseReconnectDelay = Duration(seconds: 2);
+  static const Duration _maxReconnectDelay = Duration(minutes: 5);
+  static const Duration _connectionHealthInterval = Duration(seconds: 10);
+  static const Duration _staleConnectionThreshold = Duration(seconds: 30);
 
   @override
   bool get isSupported {
@@ -276,7 +289,15 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
 
       updateCurrentDevice(deviceInfo);
       updateConnectionState(BleConnectionState.connected);
-      _reconnectAttempts = 0; // Reset reconnect attempts on successful connection
+      
+      // Reset all error recovery state on successful connection
+      _reconnectAttempts = 0;
+      _consecutiveErrors = 0;
+      _lastSuccessfulConnection = DateTime.now();
+      _isReconnecting = false;
+      
+      // Start health monitoring for the new connection
+      _startConnectionHealthMonitoring();
 
       return deviceInfo;
 
@@ -375,21 +396,257 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
 
   void _handleDisconnection() {
     updateCurrentDevice(null);
+    _stopConnectionHealthMonitoring();
     
-    // Implement exponential backoff for reconnection
-    if (_reconnectAttempts < _maxReconnectAttempts && !_disposed && _connectedDevice != null) {
-      final delay = Duration(seconds: 2 << _reconnectAttempts); // Exponential backoff
-      _reconnectTimer?.cancel();
-      _reconnectTimer = Timer(delay, () async {
-        try {
-          _reconnectAttempts++;
-          await _connectedDevice!.connect(timeout: const Duration(seconds: 8));
-          await _discoverAndSubscribe();
-        } catch (e) {
-          print('Reconnection attempt $_reconnectAttempts failed: $e');
+    if (!_disposed && _connectedDevice != null && !_isReconnecting) {
+      _scheduleReconnection();
+    }
+  }
+
+  /// Schedule reconnection with exponential backoff and jitter
+  void _scheduleReconnection() {
+    if (_reconnectAttempts >= _maxReconnectAttempts) {
+      print('最大再接続試行回数に達しました。手動で再接続してください。');
+      updateConnectionState(BleConnectionState.error);
+      return;
+    }
+
+    // Calculate delay with exponential backoff and jitter
+    final baseDelay = _baseReconnectDelay.inSeconds * (1 << _reconnectAttempts);
+    final maxDelay = _maxReconnectDelay.inSeconds;
+    final delaySeconds = baseDelay.clamp(2, maxDelay);
+    
+    // Add jitter (±25%) to prevent thundering herd
+    final jitter = (delaySeconds * 0.25 * (2 * (DateTime.now().millisecond / 1000.0) - 1)).round();
+    final finalDelay = Duration(seconds: (delaySeconds + jitter).clamp(1, maxDelay));
+
+    print('再接続を${finalDelay.inSeconds}秒後にスケジュール (試行 ${_reconnectAttempts + 1}/$_maxReconnectAttempts)');
+
+    _reconnectTimer?.cancel();
+    _reconnectTimer = Timer(finalDelay, () => _attemptReconnection());
+  }
+
+  /// Attempt reconnection with comprehensive error handling
+  Future<void> _attemptReconnection() async {
+    if (_disposed || _isReconnecting) return;
+
+    _isReconnecting = true;
+    _reconnectAttempts++;
+    
+    try {
+      print('再接続を試行中... (${_reconnectAttempts}/$_maxReconnectAttempts)');
+      updateConnectionState(BleConnectionState.connecting);
+
+      // Check if device is still available before attempting connection
+      if (!await _isDeviceStillAvailable()) {
+        throw const BleException(BleError.deviceNotFound, 'デバイスが利用できません');
+      }
+
+      // Attempt connection with shorter timeout for retry
+      await _connectedDevice!.connect(
+        timeout: const Duration(seconds: 8),
+        autoConnect: false,
+      );
+
+      // Re-setup connection monitoring and services
+      await _setupConnectionMonitoring();
+      await _discoverAndSubscribe();
+
+      // Success - reset error counters
+      _reconnectAttempts = 0;
+      _consecutiveErrors = 0;
+      _lastSuccessfulConnection = DateTime.now();
+      _startConnectionHealthMonitoring();
+      
+      print('再接続に成功しました');
+      updateConnectionState(BleConnectionState.connected);
+      
+    } catch (e) {
+      _consecutiveErrors++;
+      _lastErrorTime = DateTime.now();
+      
+      print('再接続に失敗しました (${_reconnectAttempts}/$_maxReconnectAttempts): $e');
+      
+      if (_consecutiveErrors >= _maxConsecutiveErrors) {
+        print('連続エラー上限に達しました。サービスを停止します。');
+        updateConnectionState(BleConnectionState.error);
+        _isReconnecting = false;
+        return;
+      }
+
+      // Schedule next retry if under limit
+      if (_reconnectAttempts < _maxReconnectAttempts) {
+        updateConnectionState(BleConnectionState.disconnected);
+        _scheduleReconnection();
+      } else {
+        updateConnectionState(BleConnectionState.error);
+      }
+    } finally {
+      _isReconnecting = false;
+    }
+  }
+
+  /// Check if device is still available/discoverable
+  Future<bool> _isDeviceStillAvailable() async {
+    if (_connectedDevice == null) return false;
+
+    try {
+      // Quick scan to check if device is advertising
+      await FlutterBluePlus.startScan(
+        withServices: [Guid(BleUuids.heartRateService)],
+        timeout: const Duration(seconds: 3),
+      );
+
+      bool deviceFound = false;
+      final scanCompleter = Completer<bool>();
+
+      final subscription = FlutterBluePlus.scanResults.listen((results) {
+        for (final result in results) {
+          if (result.device.remoteId.str == _connectedDevice!.remoteId.str) {
+            deviceFound = true;
+            scanCompleter.complete(true);
+            break;
+          }
         }
       });
+
+      // Wait for device or timeout
+      await Future.any([
+        scanCompleter.future,
+        Future.delayed(const Duration(seconds: 3), () => scanCompleter.complete(false)),
+      ]);
+
+      await subscription.cancel();
+      await FlutterBluePlus.stopScan();
+
+      return deviceFound;
+    } catch (e) {
+      print('デバイス可用性チェック中にエラー: $e');
+      return false; // Assume unavailable on error
     }
+  }
+
+  /// Start connection health monitoring
+  void _startConnectionHealthMonitoring() {
+    _stopConnectionHealthMonitoring();
+
+    _connectionHealthTimer = Timer.periodic(_connectionHealthInterval, (timer) {
+      if (_disposed) {
+        timer.cancel();
+        return;
+      }
+
+      _checkConnectionHealth();
+    });
+  }
+
+  /// Stop connection health monitoring
+  void _stopConnectionHealthMonitoring() {
+    _connectionHealthTimer?.cancel();
+    _connectionHealthTimer = null;
+  }
+
+  /// Check connection health and trigger recovery if needed
+  void _checkConnectionHealth() async {
+    if (_connectedDevice == null || connectionState != BleConnectionState.connected) {
+      return;
+    }
+
+    try {
+      // Check if we're still receiving data
+      final now = DateTime.now();
+      final performanceMetrics = getPerformanceMetrics();
+      final lastDataReceived = performanceMetrics['lastDataReceived'] as String?;
+      
+      if (lastDataReceived != null) {
+        final lastData = DateTime.parse(lastDataReceived);
+        final timeSinceData = now.difference(lastData);
+        
+        if (timeSinceData > _staleConnectionThreshold) {
+          print('接続が停止している可能性があります (${timeSinceData.inSeconds}秒間データなし)');
+          _handleStaleConnection();
+          return;
+        }
+      }
+
+      // Check physical connection state
+      final connectionState = await _connectedDevice!.connectionState.first;
+      if (connectionState != BluetoothConnectionState.connected) {
+        print('デバイスが物理的に切断されました');
+        _handleDisconnection();
+      }
+
+    } catch (e) {
+      print('接続ヘルスチェック中にエラー: $e');
+      _consecutiveErrors++;
+      
+      if (_consecutiveErrors >= 3) {
+        _handleStaleConnection();
+      }
+    }
+  }
+
+  /// Handle stale connection by forcing reconnection
+  void _handleStaleConnection() {
+    print('停止した接続を検出しました。強制再接続を開始します。');
+    _forceReconnection();
+  }
+
+  /// Force reconnection by disconnecting and reconnecting
+  Future<void> _forceReconnection() async {
+    if (_disposed || _isReconnecting) return;
+
+    try {
+      // Force disconnect
+      if (_connectedDevice != null) {
+        await _connectedDevice!.disconnect();
+      }
+      
+      updateConnectionState(BleConnectionState.disconnected);
+      
+      // Wait a moment then trigger reconnection
+      await Future.delayed(const Duration(seconds: 1));
+      _handleDisconnection();
+      
+    } catch (e) {
+      print('強制再接続中にエラー: $e');
+      updateConnectionState(BleConnectionState.error);
+    }
+  }
+
+  /// Get connection reliability metrics
+  Map<String, dynamic> getConnectionMetrics() {
+    final now = DateTime.now();
+    return {
+      'reconnectAttempts': _reconnectAttempts,
+      'consecutiveErrors': _consecutiveErrors,
+      'lastSuccessfulConnection': _lastSuccessfulConnection?.toIso8601String(),
+      'lastErrorTime': _lastErrorTime?.toIso8601String(),
+      'isReconnecting': _isReconnecting,
+      'connectionUptime': _lastSuccessfulConnection != null 
+          ? now.difference(_lastSuccessfulConnection!).inSeconds
+          : null,
+      'errorRate': _calculateErrorRate(),
+    };
+  }
+
+  /// Calculate error rate for monitoring
+  double _calculateErrorRate() {
+    if (_lastSuccessfulConnection == null) return 1.0;
+    
+    final totalTime = DateTime.now().difference(_lastSuccessfulConnection!).inMinutes;
+    if (totalTime == 0) return 0.0;
+    
+    return (_consecutiveErrors / totalTime).clamp(0.0, 1.0);
+  }
+
+  /// Reset error recovery state (for manual recovery)
+  void resetErrorRecovery() {
+    _reconnectAttempts = 0;
+    _consecutiveErrors = 0;
+    _reconnectTimer?.cancel();
+    _isReconnecting = false;
+    print('エラー回復状態がリセットされました');
   }
 
   @override
@@ -448,9 +705,27 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
     if (_disposed) return;
     _disposed = true;
     
+    // Cancel all timers first
+    _reconnectTimer?.cancel();
+    _connectionHealthTimer?.cancel();
+    _retryTimer?.cancel();
+    
+    // Stop connection monitoring
+    _stopConnectionHealthMonitoring();
+    
+    // Disconnect and cleanup
     await disconnect();
     await _scanSubscription?.cancel();
+    
+    // Reset state
+    _isReconnecting = false;
+    _reconnectAttempts = 0;
+    _consecutiveErrors = 0;
+    _lastSuccessfulConnection = null;
+    _lastErrorTime = null;
+    
     disposeMixin();
+    print('Mobile BLE service disposed with error recovery cleanup');
   }
 }
 
