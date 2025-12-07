@@ -2,11 +2,12 @@
 
 ## Product Overview
 
-**Heart Beat** is a cross-platform Flutter application designed for real-time heart rate monitoring and training optimization using Bluetooth Low Energy (BLE) heart rate sensors. The application serves as a comprehensive fitness companion that combines precise heart rate data collection with training guidance and multimedia integration.
+**Heart Beat** is a cross-platform Flutter application designed for real-time heart rate monitoring and training optimization using Bluetooth Low Energy (BLE) heart rate sensors. The application now emphasizes an **adaptive coaching frontend** that guides users through daily and weekly goals with clear visual cues, subjective feedback capture, and adaptive progression.
 
 ### Core Value Proposition
 - **Real-time Monitoring**: Continuous heart rate tracking with instant BPM display
-- **Training Optimization**: Heart rate zone-based workout guidance following scientific training principles
+- **Adaptive Coaching**: Daily “charge” goal, zone guidance, and weekly adjustments based on HR data and RPE
+- **Clarity Under Load**: Bar-style UI with high-contrast, glanceable state (UP/KEEP/DOWN)
 - **Cross-platform Compatibility**: Seamless operation across Android, Windows, and Web platforms
 - **Device Integration**: Optimized for Coospo HW9 and compatible BLE heart rate sensors
 
@@ -38,23 +39,26 @@
   - Windows: win_ble backend integration
   - Web: flutter_web_bluetooth API utilization
 
-#### 3. Training Zone Configuration
-- **Workout Profiles**: Customizable training configurations based on user goals
-- **Zone Calculation**: Automatic heart rate zone computation using:
-  - Standard formula: 220 - age
-  - Karvonen method: (HRmax - HRrest) × intensity + HRrest
-- **Visual Feedback**: Clear indication of current training zone
+#### 3. Adaptive Coaching UI
+- **Daily Charge Bar**: Progress toward today’s target minutes inside zone
+- **Zone Meter**: UP/KEEP/DOWN cues with color semantics (blue, green/orange, red)
+- **Contextual Messages**: State-based prompts for motivation and safety
 
-#### 4. Multimedia Integration
+#### 4. Training Logic
+- **Zone Calculation**: Tanaka MaxHR + Karvonen HRR for individualized targets
+- **Goal Modes**: Maintenance vs improvement weekly prescriptions
+- **Adaptive Loop**: Weekly adjustments driven by completion + RPE feedback
+
+#### 5. Multimedia Integration
 - **YouTube Player**: Integrated video playback with heart rate overlay
 - **Heart Rate Synchronization**: Real-time BPM data display during video content
 - **Workout Videos**: Support for guided training video content
 
 ### Advanced Features
 
-#### 1. Settings Management
+#### 1. Settings & Profiles
 - **User Preferences**: Persistent storage of user settings and configurations
-- **Workout Customization**: Tailored training parameters based on fitness level
+- **Profile Inputs**: Age, resting HR, goals, and subjective effort (RPE) capture
 - **Permission Management**: Automatic handling of platform-specific permissions
 
 #### 2. Cross-platform Optimization
@@ -84,10 +88,11 @@
 - **High Contrast**: Clear visibility during exercise conditions
 - **Large Touch Targets**: Easy interaction during physical activity
 - **Immediate Feedback**: Instant response to user actions
+- **Glanceable Semantics**: UP/KEEP/DOWN cues and daily progress always visible
 
 ### Accessibility
 - **Font Sizing**: Large, readable text for heart rate display
-- **Color Coding**: Intuitive color schemes for different heart rate zones
+- **Color Coding**: Intuitive color schemes for different heart rate zones (blue/green-orange/red)
 - **Status Indicators**: Clear visual and textual status communication
 - **Error Handling**: User-friendly error messages and recovery guidance
 

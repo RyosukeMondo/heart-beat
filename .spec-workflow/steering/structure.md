@@ -28,6 +28,8 @@ heart_beat/
 │   │   └── settings.dart             # Player settings management
 │   ├── workout/               # Workout and training module
 │   │   ├── profile.dart              # User profile management
+│   │   ├── daily_charge_bar.dart     # Daily goal progress component (planned)
+│   │   ├── zone_meter.dart           # UP/KEEP/DOWN intensity component (planned)
 │   │   ├── workout_config_page.dart  # Workout configuration UI
 │   │   └── workout_settings.dart     # Workout settings state
 │   └── main.dart              # Application entry point
@@ -129,14 +131,18 @@ class PlayerSettings extends ChangeNotifier {
 
 ### 4. Workout & Training Module (`lib/workout/`)
 
-**Purpose**: Training configuration and user profile management
+**Purpose**: Training configuration, coaching visuals, and user profile management
 
-#### 4.1 Workout Configuration (`workout_config_page.dart`)
+#### 4.1 Coaching UI Components
+- **DailyChargeBar (`daily_charge_bar.dart`)**: Visualizes minutes achieved vs daily target
+- **ZoneMeter (`zone_meter.dart`)**: Displays real-time cue (UP/KEEP/DOWN) with color semantics
+
+#### 4.2 Workout Configuration (`workout_config_page.dart`)
 - Training zone setup interface
-- Heart rate zone calculations (220-age, Karvonen method)
+- Heart rate zone calculations (Tanaka + Karvonen HRR)
 - Workout type selection and customization
 
-#### 4.2 Settings State (`workout_settings.dart`)
+#### 4.3 Settings & State (`workout_settings.dart`)
 ```dart
 class WorkoutSettings extends ChangeNotifier {
   WorkoutConfig _selected;
@@ -146,7 +152,7 @@ class WorkoutSettings extends ChangeNotifier {
 }
 ```
 
-#### 4.3 User Profile (`profile.dart`)
+#### 4.4 User Profile (`profile.dart`)
 - User demographic data (age, fitness level)
 - Training history and preferences
 - Heart rate zone calculations
@@ -156,24 +162,20 @@ User Input → WorkoutSettings → Calculations → UI Update → Persistence
 
 ## State Management Architecture
 
-### Provider Pattern Implementation
+### Riverpod Implementation
 
 ```
-MultiProvider (Root)
-├── PlayerSettings
-│   ├── Video preferences
-│   ├── Overlay settings
-│   └── Playback configuration
-└── WorkoutSettings
-    ├── Training zones
-    ├── User profile
-    └── Workout configurations
+ProviderScope (Root)
+├── bleServiceProvider
+├── heartRateStreamProvider
+├── dailyPlanProvider (StateNotifier)
+└── workoutSettingsProvider
 ```
 
 ### State Persistence Strategy
 - **SharedPreferences**: Local key-value storage for user settings
-- **Automatic Loading**: Settings loaded at app initialization
-- **Change Notification**: Provider pattern for reactive UI updates
+- **Isar/Drift**: Session and historical metrics persistence
+- **Change Notification**: Riverpod providers for reactive UI updates
 
 ## Cross-Platform Abstraction
 

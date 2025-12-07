@@ -49,8 +49,9 @@ flutter_web_bluetooth: ^1.1.0        # Web Bluetooth API wrapper
 
 #### State Management & Persistence
 ```yaml
-provider: ^6.1.5                     # State management pattern
-shared_preferences: ^2.2.3           # Local data persistence
+flutter_riverpod: ^2.5.0             # Reactive state management for coaching UI
+shared_preferences: ^2.2.3           # Lightweight settings
+isar: ^3.1.0 || drift: ^2.16.0       # Local time-series/session storage (choose one)
 ```
 
 #### UI & Media
@@ -153,35 +154,29 @@ class HeartRateParser {
 
 ### State Management Implementation
 
-#### Provider Pattern Usage
+#### Riverpod Usage
 ```dart
-class PlayerSettings extends ChangeNotifier {
-  late SharedPreferences _prefs;
-  
-  Future<void> load() async {
-    _prefs = await SharedPreferences.getInstance();
-    notifyListeners();
-  }
-  
-  void updateSetting(String key, dynamic value) {
-    // Update logic with persistence
-    notifyListeners();
-  }
-}
+final bleServiceProvider = Provider<BleService>((_) => BleService.instance);
+
+final heartRateStreamProvider = StreamProvider<int>((ref) {
+  final service = ref.watch(bleServiceProvider);
+  return service.heartRateStream;
+});
+
+final dailyPlanProvider = StateNotifierProvider<DailyPlanController, DailyPlanState>((ref) {
+  final repo = ref.watch(planRepositoryProvider);
+  return DailyPlanController(repo);
+});
 ```
 
-#### Workout Configuration
+#### Coaching State Model
 ```dart
-class WorkoutSettings extends ChangeNotifier {
-  WorkoutConfig _selected = WorkoutConfig.defaultConfig();
-  
-  WorkoutConfig get selected => _selected;
-  
-  void setWorkout(WorkoutConfig config) {
-    _selected = config;
-    notifyListeners();
-    _persistToStorage();
-  }
+class DailyPlanState {
+  final int targetMinutes;
+  final int achievedMinutes;
+  final int targetLowerBpm;
+  final int targetUpperBpm;
+  final ZoneCue cue; // up | keep | down
 }
 ```
 
@@ -253,7 +248,7 @@ Idle → Scanning → Connecting → Connected → Streaming → Disconnected
 
 ### Widget Testing
 - **UI Responsiveness**: Heart rate display update validation
-- **State Management**: Provider pattern integration testing
+- **State Management**: Riverpod provider integration testing
 - **Navigation**: Page transition and state preservation
 
 ## Build & Deployment
