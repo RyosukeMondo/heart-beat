@@ -1,19 +1,20 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../ble/ble_service.dart';
 import 'settings.dart';
 import '../workout/workout_settings.dart';
+import '../workout/coaching_controller.dart'; // Import for bleServiceProvider
 
-class PlayerPage extends StatefulWidget {
+class PlayerPage extends ConsumerStatefulWidget {
   const PlayerPage({super.key});
   @override
-  State<PlayerPage> createState() => _PlayerPageState();
+  ConsumerState<PlayerPage> createState() => _PlayerPageState();
 }
 
-class _PlayerPageState extends State<PlayerPage> {
+class _PlayerPageState extends ConsumerState<PlayerPage> {
   InAppWebViewController? _web;
   double? _ema; // smoothed bpm
   int? _lastAppliedBpm; // for BPM-based hysteresis
@@ -207,6 +208,9 @@ class _PlayerPageState extends State<PlayerPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Note: Provider.of/context.watch works for standard providers,
+    // but mixing with Riverpod usually requires ConsumerWidget/ConsumerState.
+    // Assuming context.watch<PlayerSettings>() comes from package:provider.
     final settings = context.watch<PlayerSettings>();
     // Ensure current debug flag is applied
     _applyDebugLog();
@@ -549,7 +553,7 @@ setInterval(()=>{ try{ if(window.__pendingId && player && typeof player.cueVideo
                 ),
                 const SizedBox(height: 8),
                 StreamBuilder<int>(
-                  stream: BleService.instance.heartRateStream,
+                  stream: ref.watch(bleServiceProvider).heartRateStream,
                   builder: (context, snap) {
                     if (snap.hasData) {
                       _onBpm(snap.data!, settings);
@@ -685,27 +689,26 @@ setInterval(()=>{ try{ if(window.__pendingId && player && typeof player.cueVideo
       ),
     );
   }
-}
 
-String? _extractVideoId(String url) {
-  try {
-    final uri = Uri.parse(url.trim());
-    // youtu.be/<id>
-    if (uri.host.contains('youtu.be') && uri.pathSegments.isNotEmpty) {
-      return uri.pathSegments.first;
-    }
-    // youtube.com/watch?v=<id>
-    final v = uri.queryParameters['v'];
-    if (v != null && v.isNotEmpty) return v;
-    // youtube.com/embed/<id>
-    if (uri.pathSegments.isNotEmpty &&
-        uri.pathSegments.first == 'embed' &&
-        uri.pathSegments.length >= 2) {
-      return uri.pathSegments[1];
-    }
-  } catch (_) {}
-  return null;
-}
+  String? _extractVideoId(String url) {
+    try {
+      final uri = Uri.parse(url.trim());
+      // youtu.be/<id>
+      if (uri.host.contains('youtu.be') && uri.pathSegments.isNotEmpty) {
+        return uri.pathSegments.first;
+      }
+      // youtube.com/watch?v=<id>
+      final v = uri.queryParameters['v'];
+      if (v != null && v.isNotEmpty) return v;
+      // youtube.com/embed/<id>
+      if (uri.pathSegments.isNotEmpty &&
+          uri.pathSegments.first == 'embed' &&
+          uri.pathSegments.length >= 2) {
+        return uri.pathSegments[1];
+      }
+    } catch (_) {}
+    return null;
+  }
 
   Widget _buildHeartRateOverlay() {
     final workoutSettings = context.watch<WorkoutSettings>();
@@ -864,17 +867,18 @@ String? _extractVideoId(String url) {
     }
   }
 
-String _labelFor(WorkoutType t) {
-  switch (t) {
-    case WorkoutType.recovery:
-      return 'Recovery (Z1)';
-    case WorkoutType.fatBurn:
-      return 'Fat Burn (Z2)';
-    case WorkoutType.endurance:
-      return 'Endurance (Z2-3)';
-    case WorkoutType.tempo:
-      return 'Tempo (Z4)';
-    case WorkoutType.hiit:
-      return 'HIIT (Z5)';
+  String _labelFor(WorkoutType t) {
+    switch (t) {
+      case WorkoutType.recovery:
+        return 'Recovery (Z1)';
+      case WorkoutType.fatBurn:
+        return 'Fat Burn (Z2)';
+      case WorkoutType.endurance:
+        return 'Endurance (Z2-3)';
+      case WorkoutType.tempo:
+        return 'Tempo (Z4)';
+      case WorkoutType.hiit:
+        return 'HIIT (Z5)';
+    }
   }
 }
