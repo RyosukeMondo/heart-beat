@@ -76,14 +76,6 @@ class BleServiceImplWeb extends BleService with BleServiceMixin {
         e as Exception?,
       );
     }
-  } catch (e) {
-      if (e is BleException) rethrow;
-      throw BleException(
-        BleError.bluetoothNotSupported,
-        'Failed to check Web Bluetooth availability: ${e.toString()}',
-        e as Exception?,
-      );
-    }
   }
 
   @override
@@ -387,42 +379,6 @@ class BleServiceImplWeb extends BleService with BleServiceMixin {
       );
       
       throw BleException(BleError.serviceNotFound, errorMsg, e as Exception?);
-    }
-  }
-
-      if (heartRateService == null) {
-        throw const BleException(BleError.serviceNotFound, 'Heart Rate Service not found');
-      }
-
-      // Get Heart Rate Measurement characteristic
-      try {
-        _heartRateCharacteristic = await heartRateService.getCharacteristic(BleUuids.heartRateMeasurement);
-      } catch (e) {
-        throw BleException(
-          BleError.characteristicNotFound,
-          'Heart Rate Measurement characteristic not found: ${e.toString()}',
-          e as Exception?,
-        );
-      }
-
-      // Start notifications
-      await _heartRateCharacteristic!.startNotifications();
-
-      // Subscribe to heart rate data
-      _notificationSubscription?.cancel();
-      _notificationSubscription = _heartRateCharacteristic!.value.listen((ByteData byteData) {
-        try {
-          // Convert ByteData to List<int>
-          final bytes = byteData.buffer.asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
-          parseAndEmitHeartRate(bytes);
-        } catch (e) {
-          print('Error parsing heart rate data: $e');
-        }
-      });
-
-    } catch (e) {
-      if (e is BleException) rethrow;
-      throw BleException(BleError.serviceNotFound, 'Failed to discover services: ${e.toString()}', e as Exception?);
     }
   }
 

@@ -231,5 +231,3 @@ enum BleSeverity {
   final int level;
   final String name;
 }
-  }
-}

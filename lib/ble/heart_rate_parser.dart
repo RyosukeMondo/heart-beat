@@ -192,9 +192,6 @@ class HeartRateParser {
       });
       return null;
     }
-  } catch (e) {
-      return null;
-    }
   }
 
   /// Validate heart rate measurement data format
