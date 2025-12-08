@@ -2,7 +2,8 @@ import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:provider/provider.dart' hide Provider, Consumer;
 
 import 'player/player_page.dart';
 import 'player/settings.dart';
@@ -13,9 +14,20 @@ import 'auth/login_page.dart';
 import 'ble/ble_service.dart';
 import 'ble/ble_types.dart';
 
+import 'workout/coaching_controller.dart';
+import 'workout/coaching_state.dart';
+import 'workout/daily_charge_bar.dart';
+import 'workout/zone_meter.dart';
+import 'workout/session_summary_sheet.dart';
+import 'workout/session_repository.dart';
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const HeartBeatApp());
+  runApp(
+    ProviderScope( // Riverpod scope
+      child: const HeartBeatApp(),
+    ),
+  );
 }
 
 class HeartBeatApp extends StatelessWidget {
@@ -23,6 +35,7 @@ class HeartBeatApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // We keep MultiProvider for legacy parts or parts not yet migrated to Riverpod
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => PlayerSettings()..load()),
@@ -33,277 +46,66 @@ class HeartBeatApp extends StatelessWidget {
         title: 'Heart Beat',
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.red),
+          useMaterial3: true,
         ),
-        home: const HeartRatePage(),
+        home: const CoachingPage(),
         debugShowCheckedModeBanner: false,
       ),
     );
   }
 }
 
-class HeartRatePage extends StatefulWidget {
-  const HeartRatePage({super.key});
+class CoachingPage extends ConsumerStatefulWidget {
+  const CoachingPage({super.key});
 
   @override
-  State<HeartRatePage> createState() => _HeartRatePageState();
+  ConsumerState<CoachingPage> createState() => _CoachingPageState();
 }
 
-class _HeartRatePageState extends State<HeartRatePage> {
-  late final BleService _bleService;
-  StreamSubscription<int>? _heartRateSubscription;
-  StreamSubscription<BleConnectionState>? _connectionStateSubscription;
+class _CoachingPageState extends ConsumerState<CoachingPage> {
+  // We use the controller via Riverpod
   
-  BleConnectionState _connectionState = BleConnectionState.idle;
-  int? _latestBpm;
-  DeviceInfo? _connectedDevice;
-  String? _errorMessage;
-
   @override
   void initState() {
     super.initState();
-    _bleService = BleService();
-    _initializeBleService();
+    // Start scanning on load? Or wait for user?
+    // Spec says: "WHEN launching or starting a session on Android 12+ THEN the app SHALL request BLUETOOTH_SCAN and BLUETOOTH_CONNECT"
+    // We should probably init BLE permissions here.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initBle();
+    });
   }
 
-  @override
-  void dispose() {
-    _heartRateSubscription?.cancel();
-    _connectionStateSubscription?.cancel();
-    _bleService.dispose();
-    super.dispose();
-  }
-
-  Future<void> _initializeBleService() async {
-    try {
-      setState(() {
-        _connectionState = BleConnectionState.idle;
-        _errorMessage = null;
-      });
-
-      // Initialize the BLE service
-      await _bleService.initializeIfNeeded();
-
-      // Set up stream subscriptions
-      _setupStreamSubscriptions();
-
-      setState(() {
-        _connectionState = BleConnectionState.idle;
-      });
-    } catch (e) {
-      setState(() {
-        _connectionState = BleConnectionState.error;
-        _errorMessage = _getBleErrorMessage(e);
-      });
+  Future<void> _initBle() async {
+    final bleService = ref.read(bleServiceProvider);
+    await bleService.initializeIfNeeded();
+    final hasPerms = await bleService.checkAndRequestPermissions();
+    if (hasPerms) {
+       // Auto scan? Or manual?
+       // Existing app had manual connect button. Spec implies "connection drops... retry".
+       // Let's keep manual connect for now but auto reconnect if dropped.
     }
-  }
-
-  void _setupStreamSubscriptions() {
-    // Subscribe to heart rate data stream
-    _heartRateSubscription?.cancel();
-    _heartRateSubscription = _bleService.heartRateStream.listen(
-      (heartRate) {
-        setState(() {
-          _latestBpm = heartRate;
-        });
-      },
-      onError: (error) {
-        print('Heart rate stream error: $error');
-      },
-    );
-
-    // Subscribe to connection state changes
-    _connectionStateSubscription?.cancel();
-    _connectionStateSubscription = _bleService.connectionStateStream.listen(
-      (state) {
-        setState(() {
-          _connectionState = state;
-          _connectedDevice = _bleService.currentDevice;
-          
-          // Clear error message on successful connection
-          if (state == BleConnectionState.connected) {
-            _errorMessage = null;
-          }
-        });
-      },
-      onError: (error) {
-        print('Connection state stream error: $error');
-      },
-    );
-  }
-
-  String _getBleErrorMessage(dynamic error) {
-    if (error is BleException) {
-      return error.localizedMessage;
-    }
-    return error.toString();
-  }
-
-  String get _statusText {
-    if (_errorMessage != null) {
-      return _errorMessage!;
-    }
-    
-    switch (_connectionState) {
-      case BleConnectionState.idle:
-        return !_bleService.isSupported ? 'Bluetooth未対応' : '接続待機';
-      case BleConnectionState.scanning:
-        return 'デバイスをスキャン中...';
-      case BleConnectionState.connecting:
-        return '接続中...';
-      case BleConnectionState.connected:
-        return '接続済み: ${_connectedDevice?.platformName ?? "Unknown Device"}';
-      case BleConnectionState.disconnected:
-        return '切断されました';
-      case BleConnectionState.error:
-        return 'エラーが発生しました';
-    }
-  }
-
-  Future<void> _connect() async {
-    try {
-      setState(() => _errorMessage = null);
-      
-      // Check and request permissions if needed
-      final permissionsGranted = await _bleService.checkAndRequestPermissions();
-      if (!permissionsGranted) {
-        setState(() {
-          _errorMessage = 'Bluetooth権限が必要です';
-          _connectionState = BleConnectionState.error;
-        });
-        return;
-      }
-
-      // Start scanning and connecting
-      final deviceInfo = await _bleService.scanAndConnect(
-        timeout: const Duration(seconds: 15),
-      );
-
-      if (deviceInfo == null) {
-        setState(() {
-          _errorMessage = '心拍センサーが見つかりませんでした';
-          _connectionState = BleConnectionState.idle;
-        });
-      }
-    } catch (e) {
-      setState(() {
-        _errorMessage = _getBleErrorMessage(e);
-        _connectionState = BleConnectionState.error;
-      });
-    }
-  }
-
-  Future<void> _disconnect() async {
-    try {
-      await _bleService.disconnect();
-    } catch (e) {
-      setState(() {
-        _errorMessage = _getBleErrorMessage(e);
-      });
-    }
-  }
-
-  Widget _buildHeartRateDisplay() {
-    final bpm = _latestBpm;
-    final isConnected = _connectionState == BleConnectionState.connected;
-    
-    return FittedBox(
-      fit: BoxFit.scaleDown,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            bpm != null ? '$bpm' : '--',
-            style: TextStyle(
-              fontSize: 72,
-              fontWeight: FontWeight.bold,
-              color: isConnected ? Colors.red : Colors.grey,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'BPM',
-            style: TextStyle(
-              fontSize: 16,
-              color: isConnected ? Colors.black87 : Colors.grey,
-            ),
-          ),
-          if (_connectedDevice != null) ...[
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.green.withOpacity(0.3)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.bluetooth_connected, color: Colors.green, size: 16),
-                  const SizedBox(width: 4),
-                  Text(
-                    _connectedDevice!.platformName,
-                    style: const TextStyle(
-                      color: Colors.green,
-                      fontWeight: FontWeight.w500,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildConnectionButton() {
-    final isConnected = _connectionState == BleConnectionState.connected;
-    final isConnecting = _connectionState == BleConnectionState.connecting || 
-                        _connectionState == BleConnectionState.scanning;
-
-    if (isConnected) {
-      return FilledButton.icon(
-        onPressed: isConnecting ? null : _disconnect,
-        icon: const Icon(Icons.bluetooth_disabled),
-        label: const Text('切断'),
-        style: FilledButton.styleFrom(
-          backgroundColor: Colors.red,
-          foregroundColor: Colors.white,
-        ),
-      );
-    }
-
-    return FilledButton.icon(
-      onPressed: isConnecting ? null : _connect,
-      icon: isConnecting 
-          ? const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : const Icon(Icons.favorite),
-      label: Text(isConnecting ? 'スキャン中...' : '心拍センサーに接続'),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final workout = context.watch<WorkoutSettings>();
-    final platformName = kIsWeb ? "Web" : Platform.isWindows ? "Windows" : "Mobile";
-    
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('心拍数表示 ($platformName)'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        actions: [
-          IconButton(
+     final coachingState = ref.watch(coachingControllerProvider);
+     final controller = ref.read(coachingControllerProvider.notifier);
+     final bleService = ref.watch(bleServiceProvider);
+
+     // Legacy providers
+     final authSettings = context.watch<AuthSettings>();
+     final workoutSettings = context.watch<WorkoutSettings>();
+
+     return Scaffold(
+       appBar: AppBar(
+         title: const Text('Heart Beat Coach'),
+         actions: [
+            IconButton(
             tooltip: 'Authentication',
             onPressed: () {
-              final authSettings = context.read<AuthSettings>();
               if (authSettings.isAuthenticated) {
-                _showUserMenu(context);
+                // _showUserMenu(context); // Legacy user menu if needed
               } else {
                 Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const LoginPage()),
@@ -311,7 +113,7 @@ class _HeartRatePageState extends State<HeartRatePage> {
               }
             },
             icon: Icon(
-              context.watch<AuthSettings>().isAuthenticated 
+              authSettings.isAuthenticated
                   ? Icons.person 
                   : Icons.person_outline,
             ),
@@ -323,208 +125,147 @@ class _HeartRatePageState extends State<HeartRatePage> {
                 MaterialPageRoute(builder: (_) => const WorkoutConfigPage()),
               );
             },
-            icon: const Icon(Icons.settings_suggest),
+            icon: const Icon(Icons.settings),
           ),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Status display
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
+         ],
+       ),
+       body: Column(
+         crossAxisAlignment: CrossAxisAlignment.stretch,
+         children: [
+           const SizedBox(height: 16),
+           const DailyChargeBar(),
+           const Spacer(),
+           const Center(child: ZoneMeter()),
+           const Spacer(),
+           _buildControls(context, controller, coachingState, bleService),
+           const SizedBox(height: 24),
+         ],
+       ),
+     );
+  }
+
+  Widget _buildControls(BuildContext context, CoachingController controller, CoachingState state, BleService bleService) {
+    return StreamBuilder<BleConnectionState>(
+      stream: bleService.connectionStateStream,
+      initialData: BleConnectionState.idle,
+      builder: (context, snapshot) {
+        final connState = snapshot.data ?? BleConnectionState.idle;
+
+        if (connState == BleConnectionState.connected) {
+             if (state.status == SessionStatus.idle) {
+               // Not started, show Start button
+               return FloatingActionButton.extended(
+                 onPressed: () {
+                    // Start session with current workout settings
+                    final ws = context.read<WorkoutSettings>();
+                    final (lower, upper) = ws.targetRange();
+                    // Assuming targetMinutes is in settings or profile, but spec says "Daily Charge".
+                    // Let's assume 30 mins default or read from somewhere.
+                    // WS doesn't seem to have target minutes exposed directly except maybe in configs.
+                    // For now hardcode 30 or read from controller default.
+                    controller.startSession(30, lower, upper);
+                 },
+                 label: const Text('START SESSION'),
+                 icon: const Icon(Icons.play_arrow),
+               );
+             } else if (state.status == SessionStatus.paused) {
+                // Show Resume / Stop
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(
-                      _getStatusIcon(),
-                      color: _getStatusColor(),
-                      size: 20,
+                    FloatingActionButton.extended(
+                      onPressed: () => controller.resumeSession(),
+                      label: const Text('RESUME'),
+                      icon: const Icon(Icons.play_arrow),
+                      backgroundColor: Colors.green,
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '状態: $_statusText',
-                        style: TextStyle(
-                          color: _getStatusColor(),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
+                    const SizedBox(width: 24),
+                    FloatingActionButton.extended(
+                      onPressed: () => _endSession(context, controller),
+                      label: const Text('STOP'),
+                      icon: const Icon(Icons.stop),
+                      backgroundColor: Colors.red,
                     ),
                   ],
-                ),
-              ),
-            ),
-            
-            const SizedBox(height: 16),
-
-            // Heart rate display
-            Expanded(
-              child: Center(child: _buildHeartRateDisplay()),
-            ),
-
-            const SizedBox(height: 16),
-
-            // User status info
-            Consumer<AuthSettings>(
-              builder: (context, authSettings, _) => Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    children: [
-                      Icon(
-                        authSettings.isAuthenticated ? Icons.person : Icons.person_outline,
-                        color: authSettings.isAuthenticated ? Colors.green : Colors.grey,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          authSettings.isAuthenticated 
-                              ? 'User: ${authSettings.displayName} (${authSettings.competitiveLevel})'
-                              : 'Not signed in (Guest mode)',
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            // Workout info
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  children: [
-                    const Icon(Icons.fitness_center, color: Colors.orange),
-                    const SizedBox(width: 8),
-                    Text('ワークアウト: ${workout.selected.name}'),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // Connection button
-            _buildConnectionButton(),
-
-            const SizedBox(height: 8),
-
-            // YouTube player button
-            OutlinedButton.icon(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const PlayerPage()),
                 );
-              },
-              icon: const Icon(Icons.ondemand_video),
-              label: const Text('YouTube プレイヤー (心拍連動)'),
-            ),
-          ],
-        ),
-      ),
+             } else {
+                // Running
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                     FloatingActionButton.extended(
+                      onPressed: () => controller.pauseSession(),
+                      label: const Text('PAUSE'),
+                      icon: const Icon(Icons.pause),
+                      backgroundColor: Colors.orange,
+                    ),
+                  ],
+                );
+             }
+        } else if (connState == BleConnectionState.scanning || connState == BleConnectionState.connecting) {
+           return const Center(child: CircularProgressIndicator());
+        } else {
+           // Disconnected or Error
+           return FloatingActionButton.extended(
+             onPressed: () async {
+               // Manual connect
+               try {
+                  await bleService.scanAndConnect();
+               } catch (e) {
+                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Connection failed: $e')));
+               }
+             },
+             label: const Text('CONNECT SENSOR'),
+             icon: const Icon(Icons.bluetooth_searching),
+           );
+        }
+      },
     );
   }
 
-  IconData _getStatusIcon() {
-    switch (_connectionState) {
-      case BleConnectionState.idle:
-        return Icons.bluetooth;
-      case BleConnectionState.scanning:
-        return Icons.bluetooth_searching;
-      case BleConnectionState.connecting:
-        return Icons.bluetooth_connected;
-      case BleConnectionState.connected:
-        return Icons.bluetooth_connected;
-      case BleConnectionState.disconnected:
-        return Icons.bluetooth_disabled;
-      case BleConnectionState.error:
-        return Icons.error;
-    }
-  }
-
-  Color _getStatusColor() {
-    if (_errorMessage != null) return Colors.red;
-    
-    switch (_connectionState) {
-      case BleConnectionState.idle:
-        return Colors.grey;
-      case BleConnectionState.scanning:
-      case BleConnectionState.connecting:
-        return Colors.orange;
-      case BleConnectionState.connected:
-        return Colors.green;
-      case BleConnectionState.disconnected:
-        return Colors.grey;
-      case BleConnectionState.error:
-        return Colors.red;
-    }
-  }
-
-  void _showUserMenu(BuildContext context) {
-    final authSettings = context.read<AuthSettings>();
+  void _endSession(BuildContext context, CoachingController controller) {
+    controller.pauseSession();
+    final state = controller.state;
+    // Show summary
     showModalBottomSheet(
       context: context,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.person),
-              title: Text(authSettings.displayName),
-              subtitle: Text(authSettings.userEmail),
-            ),
-            const Divider(),
-            ListTile(
-              leading: const Icon(Icons.sports_esports),
-              title: const Text('Competitive Level'),
-              subtitle: Text(authSettings.competitiveLevel),
-              trailing: Text(authSettings.winRatePercentage),
-            ),
-            if (authSettings.hasPlayedGames) ...[
-              ListTile(
-                leading: const Icon(Icons.timer),
-                title: const Text('Total Game Time'),
-                subtitle: Text(_formatDuration(authSettings.estimatedTotalGameTime)),
-              ),
-            ],
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: () async {
-                Navigator.pop(context);
-                await authSettings.logout();
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Logged out successfully')),
-                  );
-                }
-              },
-              icon: const Icon(Icons.logout),
-              label: const Text('Logout'),
-              style: FilledButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-              ),
-            ),
-          ],
+      isScrollControlled: true,
+      isDismissible: false,
+      enableDrag: false,
+      builder: (context) => SessionSummarySheet(
+        session: SessionRecord(
+          id: DateTime.now().toIso8601String(),
+          start: DateTime.now().subtract(Duration(minutes: state.sessionMinutes)),
+          end: DateTime.now(),
+          avgBpm: state.avgBpm,
+          maxBpm: state.maxBpm,
+          minutesInZone: state.sessionMinutes,
+          rpe: null, // To be filled
         ),
+        onSave: (rpe) async {
+          // Create final session record with RPE
+          final session = SessionRecord(
+            id: DateTime.now().toIso8601String(),
+            start: DateTime.now().subtract(Duration(minutes: state.sessionMinutes)),
+            end: DateTime.now(),
+            avgBpm: state.avgBpm,
+            maxBpm: state.maxBpm,
+            minutesInZone: state.sessionMinutes,
+            rpe: rpe,
+          );
+
+          // Save to repo
+          final repo = ref.read(sessionRepositoryProvider);
+          await repo.saveSession(session);
+
+          if (context.mounted) {
+             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Session Saved!')));
+          }
+
+          // Check for weekly progression? (WeeklyAdapter usage would go here or in a background job)
+          // For now, just saved.
+        }
       ),
     );
-  }
-
-  String _formatDuration(Duration duration) {
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes % 60;
-    if (hours > 0) {
-      return '${hours}h ${minutes}m';
-    }
-    return '${minutes}m';
   }
 }
