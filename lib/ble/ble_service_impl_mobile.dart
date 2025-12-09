@@ -44,6 +44,8 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
            Platform.isMacOS || Platform.isLinux || Platform.isWindows;
   }
 
+  BleServiceImplMobile() : super.protected();
+
   @override
   Future<void> initializeIfNeeded() async {
     if (_disposed) throw const BleException(BleError.unknownError, 'Service disposed');
@@ -240,7 +242,7 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
       }
 
       // Connect to the device
-      return await connectToDevice(targetDevice.remoteId.str, timeout: timeout);
+      return await connectToDevice(targetDevice!.remoteId.str, timeout: timeout);
 
     } catch (e) {
       updateConnectionState(BleConnectionState.error);
@@ -321,6 +323,8 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
         case BluetoothConnectionState.disconnected:
           updateConnectionState(BleConnectionState.disconnected);
           _handleDisconnection();
+          break;
+        default:
           break;
       }
     });

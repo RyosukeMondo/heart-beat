@@ -183,9 +183,11 @@ class _WorkoutConfigPageState extends State<WorkoutConfigPage> {
                 ] else ...[
                   Text('Max HR ≈ ${profile.effectiveMaxHr()} bpm'),
                   const SizedBox(height: 8),
-                  final (lower, upper) = w.targetRange(),
-                  Text('Target Range: $lower - $upper bpm', 
-                       style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Builder(builder: (context) {
+                    final (lower, upper) = w.targetRange();
+                    return Text('Target Range: $lower - $upper bpm',
+                       style: const TextStyle(fontWeight: FontWeight.bold));
+                  }),
                   const SizedBox(height: 8),
                   const Text('Full Zone Breakdown:', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
                   ...[1, 2, 3, 4, 5].map((z) {

@@ -23,6 +23,9 @@ class BleUuids {
 /// Provides a unified interface for BLE operations on web, mobile, and desktop platforms.
 /// Uses factory pattern for platform-specific implementations.
 abstract class BleService {
+  /// Default constructor for subclasses
+  BleService.protected();
+
   /// Factory constructor that returns platform-specific implementation
   factory BleService() {
     return _createPlatformService();

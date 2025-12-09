@@ -5,10 +5,11 @@ import 'package:mockito/annotations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:heart_beat/workout/workout_settings.dart';
 import 'package:heart_beat/workout/workout_config.dart';
+import 'package:heart_beat/workout/profile.dart';
 import 'package:heart_beat/player/settings.dart';
 
 // Generate mocks
-@GenerateMocks([SharedPreferences])
+@GenerateMocks([SharedPreferences], customMocks: [MockSpec<PlayerSettings>(as: #MockPlayerSettings)])
 import 'workout_settings_test.mocks.dart';
 
 void main() {
@@ -601,5 +602,5 @@ void main() {
 }
 
 // Additional mock classes for PlayerSettings
-@GenerateMocks([PlayerSettings])
-class MockPlayerSettings extends Mock implements PlayerSettings {}
+// @GenerateMocks([PlayerSettings])
+// class MockPlayerSettings extends Mock implements PlayerSettings {}
