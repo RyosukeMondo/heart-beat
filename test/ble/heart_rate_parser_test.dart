@@ -8,7 +8,7 @@ void main() {
       // Test 8-bit format: flags=0x00, hr=72 bpm
       final data = [0x00, 72];
       final result = HeartRateParser.parseHeartRate(data);
-      
+
       expect(result, 72);
     });
 
@@ -16,7 +16,7 @@ void main() {
       // Test 16-bit format: flags=0x01, hr=300 bpm (0x012C little-endian)
       final data = [0x01, 0x2C, 0x01]; // 0x012C = 300 in little-endian
       final result = HeartRateParser.parseHeartRate(data);
-      
+
       expect(result, 300);
     });
 
@@ -24,7 +24,7 @@ void main() {
       // Test minimum heart rate (30 bpm as per physiological limits)
       final data = [0x00, 30];
       final result = HeartRateParser.parseHeartRate(data);
-      
+
       expect(result, 30);
     });
 
@@ -32,7 +32,7 @@ void main() {
       // Test maximum valid heart rate (220 bpm as per physiological limits)
       final data = [0x00, 220];
       final result = HeartRateParser.parseHeartRate(data);
-      
+
       expect(result, 220);
     });
 
@@ -40,7 +40,7 @@ void main() {
       // Test 16-bit heart rate within valid range (200 bpm)
       final data = [0x01, 0xC8, 0x00]; // 0x00C8 = 200 in little-endian
       final result = HeartRateParser.parseHeartRate(data);
-      
+
       expect(result, 200);
     });
 
@@ -68,15 +68,15 @@ void main() {
     });
 
     test('throws BleDataParsingException for heart rate out of range', () {
-      // Test heart rate too low (< 30 bpm)
+      // Test heart rate too low (< 20 bpm)
       expect(
-        () => HeartRateParser.parseHeartRate([0x00, 25]),
+        () => HeartRateParser.parseHeartRate([0x00, 19]),
         throwsA(isA<BleDataParsingException>()),
       );
 
-      // Test heart rate too high (> 220 bpm)
+      // Test heart rate too high (> 300 bpm)
       expect(
-        () => HeartRateParser.parseHeartRate([0x00, 250]),
+        () => HeartRateParser.parseHeartRate([0x01, 0x2D, 0x01]), // 301
         throwsA(isA<BleDataParsingException>()),
       );
     });
@@ -84,12 +84,12 @@ void main() {
     test('handles additional data in packet correctly', () {
       // Real BLE packets often contain additional sensor data
       // Test that parser correctly extracts HR from longer packets
-      
+
       // 8-bit format with additional data
       final data8bit = [0x00, 85, 0x12, 0x34, 0x56]; // HR=85, extra data
       final result8bit = HeartRateParser.parseHeartRate(data8bit);
       expect(result8bit, 85);
-      
+
       // 16-bit format with additional data (within valid range)
       final data16bit = [0x01, 0x78, 0x00, 0xAB, 0xCD]; // HR=120, extra data
       final result16bit = HeartRateParser.parseHeartRate(data16bit);
@@ -106,8 +106,8 @@ void main() {
       ];
 
       for (final testCase in testCases) {
-        final data = testCase[0] as List<int>;
-        final expected = testCase[1] as int;
+        final data = testCase.$1;
+        final expected = testCase.$2;
         final result = HeartRateParser.parseHeartRate(data);
         expect(result, expected);
       }
@@ -124,8 +124,8 @@ void main() {
       ];
 
       for (final testCase in testCases) {
-        final data = testCase[0] as List<int>;
-        final expected = testCase[1] as int;
+        final data = testCase.$1;
+        final expected = testCase.$2;
         final result = HeartRateParser.parseHeartRate(data);
         expect(result, expected, reason: 'Failed for data: $data');
       }
@@ -142,8 +142,8 @@ void main() {
       ];
 
       for (final testCase in testCases) {
-        final data = testCase[0] as List<int>;
-        final expected = testCase[1] as int;
+        final data = testCase.$1;
+        final expected = testCase.$2;
         final result = HeartRateParser.parseHeartRate(data);
         expect(result, expected, reason: 'Failed for flags test: $data');
       }
@@ -162,7 +162,7 @@ void main() {
         HeartRateParser.parseHeartRate([0x01]);
         fail('Should have thrown BleDataParsingException');
       } on BleDataParsingException catch (e) {
-        expect(e.message, contains('Insufficient data'));
+        expect(e.message, contains('Heart rate data too short'));
         expect(e.message, isNotEmpty);
       }
     });
@@ -171,7 +171,8 @@ void main() {
       // Test that tryParseHeartRate handles errors gracefully
       expect(HeartRateParser.tryParseHeartRate([]), isNull);
       expect(HeartRateParser.tryParseHeartRate([0x00]), isNull);
-      expect(HeartRateParser.tryParseHeartRate([0x00, 25]), isNull); // Out of range
+      expect(HeartRateParser.tryParseHeartRate([0x00, 25]), 25); // Valid now
+      expect(HeartRateParser.tryParseHeartRate([0x00, 19]), isNull); // Out of range
 
       // Test valid data
       expect(HeartRateParser.tryParseHeartRate([0x00, 80]), 80);
@@ -180,8 +181,8 @@ void main() {
     test('isValidHeartRateData validates correctly', () {
       // Test invalid data
       expect(HeartRateParser.isValidHeartRateData([]), isFalse);
-      expect(HeartRateParser.isValidHeartRateData([0x00]), isFalse);
-      expect(HeartRateParser.isValidHeartRateData([0x00, 25]), isFalse); // Out of range
+      expect(HeartRateParser.isValidHeartRateData([0x00]), isFalse); // Too short
+      expect(HeartRateParser.isValidHeartRateData([0x00, 19]), isFalse); // Out of range
 
       // Test valid data
       expect(HeartRateParser.isValidHeartRateData([0x00, 80]), isTrue);

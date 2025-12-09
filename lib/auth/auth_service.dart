@@ -12,10 +12,13 @@ import 'auth_service_impl_mobile.dart'
     if (dart.library.html) 'auth_service_impl_web.dart' as impl;
 
 /// Abstract authentication service interface for user management across platforms.
-/// 
+///
 /// Provides a unified interface for user authentication operations on web, mobile, and desktop platforms.
 /// Uses factory pattern for platform-specific implementations with different backend integrations.
 abstract class AuthService {
+  /// Default constructor for subclasses
+  AuthService.protected();
+
   /// Factory constructor that returns platform-specific implementation
   factory AuthService() {
     return _createPlatformService();
@@ -33,7 +36,7 @@ abstract class AuthService {
   }
 
   /// Current authentication state stream
-  /// 
+  ///
   /// Emits the current user when authentication state changes.
   /// Emits null when the user is logged out or unauthenticated.
   Stream<User?> get userStream;
@@ -51,16 +54,16 @@ abstract class AuthService {
   bool get isInitialized;
 
   /// Initialize the authentication service
-  /// 
+  ///
   /// This method should be called before any other authentication operations.
   /// It handles platform-specific setup like API configuration, token validation, etc.
   Future<void> initialize();
 
   /// Register a new user account
-  /// 
+  ///
   /// Creates a new user account with the provided credentials and profile information.
   /// Returns [AuthResult] indicating success or failure with appropriate error details.
-  /// 
+  ///
   /// The method will:
   /// 1. Validate input parameters (email format, username availability, password strength)
   /// 2. Create user account on the authentication backend
@@ -75,10 +78,10 @@ abstract class AuthService {
   });
 
   /// Login with email and password
-  /// 
+  ///
   /// Authenticates user with provided credentials and establishes authenticated session.
   /// Returns [AuthResult] indicating success or failure with appropriate error details.
-  /// 
+  ///
   /// The method will:
   /// 1. Validate credentials against authentication backend
   /// 2. Establish authenticated session with token
@@ -91,25 +94,25 @@ abstract class AuthService {
   });
 
   /// Login with authentication token
-  /// 
+  ///
   /// Authenticates user using a previously stored authentication token.
   /// Useful for automatic login on app startup with saved credentials.
   Future<AuthResult> loginWithToken(String token);
 
   /// Logout current user
-  /// 
+  ///
   /// Clears current authentication session and user data.
   /// Safely logs out the user and cleans up resources.
   Future<void> logout();
 
   /// Refresh authentication token
-  /// 
+  ///
   /// Refreshes the current authentication token to extend session validity.
   /// Returns updated [AuthResult] with new token or failure status.
   Future<AuthResult> refreshToken();
 
   /// Update user profile information
-  /// 
+  ///
   /// Updates the current user's profile with new information.
   /// Returns [AuthResult] with updated user data or failure status.
   Future<AuthResult> updateProfile({
@@ -120,7 +123,7 @@ abstract class AuthService {
   });
 
   /// Change user password
-  /// 
+  ///
   /// Updates the user's password after validating the current password.
   /// Returns [AuthResult] indicating success or failure.
   Future<AuthResult> changePassword({
@@ -129,44 +132,44 @@ abstract class AuthService {
   });
 
   /// Request password reset
-  /// 
+  ///
   /// Initiates password reset process for the given email address.
   /// Returns [AuthResult] indicating if reset request was sent successfully.
   Future<AuthResult> requestPasswordReset(String email);
 
   /// Verify email address
-  /// 
+  ///
   /// Sends email verification to the user's registered email address.
   /// Returns [AuthResult] indicating if verification email was sent.
   Future<AuthResult> sendEmailVerification();
 
   /// Check if email is already registered
-  /// 
+  ///
   /// Validates if an email address is already associated with an account.
   /// Useful for registration form validation.
   Future<bool> isEmailRegistered(String email);
 
   /// Check if username is available
-  /// 
+  ///
   /// Validates if a username is available for registration.
   /// Useful for registration form validation.
   Future<bool> isUsernameAvailable(String username);
 
   /// Delete user account
-  /// 
+  ///
   /// Permanently deletes the current user account and all associated data.
   /// Returns [AuthResult] indicating success or failure.
   /// This action cannot be undone.
   Future<AuthResult> deleteAccount();
 
   /// Get user statistics
-  /// 
+  ///
   /// Returns user's game statistics and profile metrics.
   /// Useful for displaying user achievements and progress.
   Future<Map<String, dynamic>> getUserStats();
 
   /// Dispose of all resources and cleanup
-  /// 
+  ///
   /// Should be called when the service is no longer needed.
   /// After calling dispose(), the service should not be used anymore.
   Future<void> dispose();
@@ -180,8 +183,8 @@ class AuthException implements Exception {
   final Map<String, dynamic>? metadata;
 
   const AuthException(
-    this.status, 
-    this.message, 
+    this.status,
+    this.message,
     [this.originalException, this.metadata]
   );
 
@@ -197,8 +200,8 @@ class AuthException implements Exception {
 
   @override
   String toString() {
-    final originalMsg = originalException != null 
-        ? ' (${originalException.toString()})' 
+    final originalMsg = originalException != null
+        ? ' (${originalException.toString()})'
         : '';
     return 'AuthException: $message$originalMsg';
   }
@@ -247,11 +250,11 @@ class AuthException implements Exception {
 }
 
 /// Mixin for common authentication service functionality
-/// 
+///
 /// Provides common implementation patterns that can be shared across platforms
 /// including user session management, token handling, and state management.
 mixin AuthServiceMixin on AuthService {
-  final StreamController<User?> _userController = 
+  final StreamController<User?> _userController =
       StreamController<User?>.broadcast();
 
   User? _currentUser;
@@ -294,7 +297,7 @@ mixin AuthServiceMixin on AuthService {
   /// Update authentication token
   void updateAuthToken(String? token) {
     _authToken = token;
-    
+
     if (token != null) {
       _scheduleTokenRefresh();
     } else {
@@ -332,7 +335,7 @@ mixin AuthServiceMixin on AuthService {
   /// Schedule automatic token refresh
   void _scheduleTokenRefresh() {
     _cancelTokenRefresh();
-    
+
     _tokenRefreshTimer = Timer(_tokenRefreshInterval, () async {
       if (_currentUser != null && _authToken != null) {
         try {

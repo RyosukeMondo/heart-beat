@@ -3,7 +3,8 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:provider/provider.dart' hide Provider, Consumer;
+import 'package:provider/provider.dart' hide Provider, Consumer, ChangeNotifierProvider;
+import 'package:provider/provider.dart' as p;
 
 import 'player/player_page.dart';
 import 'player/settings.dart';
@@ -38,9 +39,9 @@ class HeartBeatApp extends StatelessWidget {
     // We keep MultiProvider for legacy parts or parts not yet migrated to Riverpod
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => PlayerSettings()..load()),
-        ChangeNotifierProvider(create: (_) => WorkoutSettings()..load()),
-        ChangeNotifierProvider(create: (_) => AuthSettings()),
+        p.ChangeNotifierProvider(create: (_) => PlayerSettings()..load()),
+        p.ChangeNotifierProvider(create: (_) => WorkoutSettings()..load()),
+        p.ChangeNotifierProvider(create: (_) => AuthSettings()),
       ],
       child: MaterialApp(
         title: 'Heart Beat',

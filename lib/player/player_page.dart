@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:provider/provider.dart' as p;
 
 import '../ble/ble_service.dart';
 import 'settings.dart';
@@ -211,7 +212,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     // Note: Provider.of/context.watch works for standard providers,
     // but mixing with Riverpod usually requires ConsumerWidget/ConsumerState.
     // Assuming context.watch<PlayerSettings>() comes from package:provider.
-    final settings = context.watch<PlayerSettings>();
+    final settings = p.Provider.of<PlayerSettings>(context);
     // Ensure current debug flag is applied
     _applyDebugLog();
 
@@ -592,7 +593,7 @@ setInterval(()=>{ try{ if(window.__pendingId && player && typeof player.cueVideo
                     });
                   },
                 ),
-                Consumer<WorkoutSettings>(
+                p.Consumer<WorkoutSettings>(
                   builder: (context, workout, _) {
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -711,7 +712,7 @@ setInterval(()=>{ try{ if(window.__pendingId && player && typeof player.cueVideo
   }
 
   Widget _buildHeartRateOverlay() {
-    final workoutSettings = context.watch<WorkoutSettings>();
+    final workoutSettings = p.Provider.of<WorkoutSettings>(context);
     final (lower, upper) = workoutSettings.targetRange();
     
     return Positioned(

@@ -30,7 +30,7 @@ class AuthResult {
 
   /// Create a successful auth result
   factory AuthResult.success({
-    required User user,
+    User? user,
     String? token,
     String? message,
     Map<String, dynamic>? metadata,

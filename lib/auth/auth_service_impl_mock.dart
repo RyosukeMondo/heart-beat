@@ -10,7 +10,7 @@ import 'auth_service.dart';
 import 'models/models.dart';
 
 /// Mock authentication service for development and testing
-/// 
+///
 /// Provides local-only authentication using SharedPreferences for storage.
 /// Includes a mock user database for simulating various user scenarios.
 class MockAuthService extends AuthService with AuthServiceMixin {
@@ -20,9 +20,11 @@ class MockAuthService extends AuthService with AuthServiceMixin {
   static const String _keyNextUserId = 'auth.nextUserId';
 
   final Random _random = Random();
-  
+
   Map<String, Map<String, dynamic>> _userDatabase = {};
   int _nextUserId = 1000;
+
+  MockAuthService() : super.protected();
 
   @override
   Future<void> initialize() async {
@@ -30,7 +32,7 @@ class MockAuthService extends AuthService with AuthServiceMixin {
 
     await _loadUserDatabase();
     await _loadCurrentSession();
-    
+
     // Add some default test users if database is empty
     if (_userDatabase.isEmpty) {
       await _createDefaultUsers();
@@ -42,11 +44,11 @@ class MockAuthService extends AuthService with AuthServiceMixin {
   /// Load user database from SharedPreferences
   Future<void> _loadUserDatabase() async {
     final prefs = await SharedPreferences.getInstance();
-    
+
     final databaseJson = prefs.getString(_keyUserDatabase);
     if (databaseJson != null) {
       final decoded = jsonDecode(databaseJson) as Map<String, dynamic>;
-      _userDatabase = decoded.map((key, value) => 
+      _userDatabase = decoded.map((key, value) =>
           MapEntry(key, Map<String, dynamic>.from(value as Map)));
     }
 
@@ -63,15 +65,15 @@ class MockAuthService extends AuthService with AuthServiceMixin {
   /// Load current session from SharedPreferences
   Future<void> _loadCurrentSession() async {
     final prefs = await SharedPreferences.getInstance();
-    
+
     final userJson = prefs.getString(_keyCurrentUser);
     final token = prefs.getString(_keyAuthToken);
-    
+
     if (userJson != null && token != null) {
       try {
         final userData = jsonDecode(userJson) as Map<String, dynamic>;
         final user = User.fromJson(userData);
-        
+
         // Validate token is still valid (simple expiry check)
         if (_isTokenValid(token)) {
           updateCurrentUser(user);
@@ -134,7 +136,7 @@ class MockAuthService extends AuthService with AuthServiceMixin {
     for (final userData in defaultUsers) {
       final userId = (_nextUserId++).toString();
       final now = DateTime.now();
-      
+
       final profile = UserProfile(
         displayName: userData['displayName'] as String,
         joinedDate: now.subtract(Duration(days: _random.nextInt(365))),
@@ -166,13 +168,13 @@ class MockAuthService extends AuthService with AuthServiceMixin {
   /// Check if token is valid (simple mock validation)
   bool _isTokenValid(String token) {
     if (!token.startsWith('mock_token_')) return false;
-    
+
     try {
       final parts = token.split('_');
       final timestamp = int.parse(parts[2]);
       final tokenDate = DateTime.fromMillisecondsSinceEpoch(timestamp);
       final now = DateTime.now();
-      
+
       // Token valid for 24 hours
       return now.difference(tokenDate).inHours < 24;
     } catch (e) {
@@ -196,7 +198,7 @@ class MockAuthService extends AuthService with AuthServiceMixin {
       username: username,
       password: password,
     );
-    
+
     if (validationErrors.isNotEmpty) {
       if (!User.isValidEmail(email)) {
         return AuthResult.failure(status: AuthStatus.invalidEmail);
@@ -227,7 +229,7 @@ class MockAuthService extends AuthService with AuthServiceMixin {
     // Create new user
     final userId = (_nextUserId++).toString();
     final now = DateTime.now();
-    
+
     final profile = UserProfile(
       displayName: displayName ?? username,
       joinedDate: now,
@@ -256,7 +258,7 @@ class MockAuthService extends AuthService with AuthServiceMixin {
     // Create session
     final token = _generateToken();
     await _saveSession(user, token);
-    
+
     updateCurrentUser(user);
     updateAuthToken(token);
 
@@ -296,7 +298,7 @@ class MockAuthService extends AuthService with AuthServiceMixin {
     // Create session
     final token = _generateToken();
     await _saveSession(user, token);
-    
+
     updateCurrentUser(user);
     updateAuthToken(token);
 
@@ -322,12 +324,12 @@ class MockAuthService extends AuthService with AuthServiceMixin {
     // For mock, we'll just load from current session
     final prefs = await SharedPreferences.getInstance();
     final userJson = prefs.getString(_keyCurrentUser);
-    
+
     if (userJson != null) {
       try {
         final userData = jsonDecode(userJson) as Map<String, dynamic>;
         final user = User.fromJson(userData);
-        
+
         updateCurrentUser(user);
         updateAuthToken(token);
 
@@ -484,12 +486,12 @@ class MockAuthService extends AuthService with AuthServiceMixin {
   @override
   Future<bool> isUsernameAvailable(String username) async {
     await Future.delayed(const Duration(milliseconds: 150)); // Simulate network delay
-    
+
     final existingUser = _userDatabase.values.firstWhere(
       (userData) => userData['username'] == username,
       orElse: () => <String, dynamic>{},
     );
-    
+
     return existingUser.isEmpty;
   }
 
@@ -537,7 +539,7 @@ class MockAuthService extends AuthService with AuthServiceMixin {
   }
 
   /// Get all registered users (for development/testing purposes)
-  Map<String, Map<String, dynamic>> get registeredUsers => 
+  Map<String, Map<String, dynamic>> get registeredUsers =>
       Map.unmodifiable(_userDatabase);
 
   /// Clear all user data (for testing purposes)
@@ -546,10 +548,10 @@ class MockAuthService extends AuthService with AuthServiceMixin {
     await prefs.remove(_keyUserDatabase);
     await prefs.remove(_keyNextUserId);
     await _clearSession();
-    
+
     _userDatabase.clear();
     _nextUserId = 1000;
-    
+
     await _createDefaultUsers();
   }
 }
