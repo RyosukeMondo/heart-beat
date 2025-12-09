@@ -2,12 +2,12 @@ import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:device_info_plus/device_info_plus.dart';
 
 import 'ble_service.dart';
 import 'ble_types.dart';
 import 'heart_rate_parser.dart';
+import 'mobile_ble_permission_manager.dart';
+import 'mobile_ble_scanner.dart';
 
 /// Mobile and desktop BLE service implementation
 /// 
@@ -17,7 +17,9 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
   BluetoothDevice? _connectedDevice;
   StreamSubscription<List<int>>? _notificationSubscription;
   StreamSubscription<BluetoothConnectionState>? _connectionSubscription;
-  StreamSubscription<List<ScanResult>>? _scanSubscription;
+
+  final _permissionManager = MobileBlePermissionManager();
+  final _scanner = MobileBleScanner();
   
   Timer? _reconnectTimer;
   Timer? _connectionHealthTimer;
@@ -39,7 +41,6 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
 
   @override
   bool get isSupported {
-    // flutter_blue_plus supports most platforms
     return Platform.isAndroid || Platform.isIOS || 
            Platform.isMacOS || Platform.isLinux || Platform.isWindows;
   }
@@ -49,137 +50,14 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
   @override
   Future<void> initializeIfNeeded() async {
     if (_disposed) throw const BleException(BleError.unknownError, 'Service disposed');
-    
     updateConnectionState(BleConnectionState.idle);
-    
-    // Check if Bluetooth is supported and enabled
-    if (!await FlutterBluePlus.isSupported) {
-      throw const BleException(BleError.bluetoothNotSupported, 'このデバイスではBluetoothがサポートされていません');
-    }
-
-    // Check Bluetooth adapter state
-    final adapterState = await FlutterBluePlus.adapterState.first;
-    if (adapterState != BluetoothAdapterState.on) {
-      throw const BleException(BleError.bluetoothNotEnabled, 'Bluetoothが無効になっています。設定から有効にしてください。');
-    }
-
-    // Pre-check permissions on Android
-    if (Platform.isAndroid) {
-      await _preCheckPermissions();
-    }
-  }
-
-  /// Pre-checks permissions without requesting them
-  /// Provides early warning about permission issues
-  Future<void> _preCheckPermissions() async {
-    try {
-      final isAndroid12Plus = await _isAndroid12OrHigher();
-      
-      if (isAndroid12Plus) {
-        final scanStatus = await Permission.bluetoothScan.status;
-        final connectStatus = await Permission.bluetoothConnect.status;
-        
-        if (scanStatus.isDenied || connectStatus.isDenied) {
-          print('一部のBluetooth権限が未許可です。接続時に権限の許可を求めます。');
-        }
-      } else {
-        final bluetoothStatus = await Permission.bluetooth.status;
-        final locationStatus = await Permission.locationWhenInUse.status;
-        
-        if (bluetoothStatus.isDenied || locationStatus.isDenied) {
-          print('一部の権限が未許可です。接続時に権限の許可を求めます。');
-        }
-      }
-    } catch (e) {
-      // Don't fail initialization for permission pre-check issues
-      print('権限の事前確認中にエラーが発生しました: $e');
-    }
+    await _permissionManager.validateBluetoothState();
+    await _permissionManager.preCheckPermissions();
   }
 
   @override
   Future<bool> checkAndRequestPermissions() async {
-    if (!Platform.isAndroid) return true; // iOS permissions handled by system
-
-    try {
-      // Check Android version for proper permission handling
-      final isAndroid12Plus = await _isAndroid12OrHigher();
-      Map<Permission, PermissionStatus> permissions = {};
-      
-      if (isAndroid12Plus) {
-        // Android 12+ requires specific BLE permissions
-        permissions = await [
-          Permission.bluetoothScan,
-          Permission.bluetoothConnect,
-          Permission.bluetoothAdvertise,
-        ].request();
-        
-        // Check if all modern permissions are granted
-        final deniedPermissions = <String>[];
-        if (permissions[Permission.bluetoothScan] != PermissionStatus.granted) {
-          deniedPermissions.add('BLUETOOTH_SCAN');
-        }
-        if (permissions[Permission.bluetoothConnect] != PermissionStatus.granted) {
-          deniedPermissions.add('BLUETOOTH_CONNECT');
-        }
-        if (permissions[Permission.bluetoothAdvertise] != PermissionStatus.granted) {
-          deniedPermissions.add('BLUETOOTH_ADVERTISE');
-        }
-        
-        if (deniedPermissions.isNotEmpty) {
-          throw BleException(
-            BleError.permissionDenied,
-            '権限が拒否されました: ${deniedPermissions.join(', ')}。設定からBluetooth権限を有効にしてください。'
-          );
-        }
-      } else {
-        // Legacy permissions for Android 11 and below
-        permissions = await [
-          Permission.bluetooth,
-          Permission.locationWhenInUse,
-        ].request();
-        
-        // Check legacy permissions
-        final deniedPermissions = <String>[];
-        if (permissions[Permission.bluetooth] != PermissionStatus.granted) {
-          deniedPermissions.add('BLUETOOTH');
-        }
-        if (permissions[Permission.locationWhenInUse] != PermissionStatus.granted) {
-          deniedPermissions.add('LOCATION');
-        }
-        
-        if (deniedPermissions.isNotEmpty) {
-          throw BleException(
-            BleError.permissionDenied,
-            '権限が拒否されました: ${deniedPermissions.join(', ')}。設定からBluetooth及び位置情報権限を有効にしてください。'
-          );
-        }
-      }
-      
-      return true;
-    } catch (e) {
-      if (e is BleException) rethrow;
-      throw BleException(
-        BleError.permissionDenied, 
-        '権限の確認中にエラーが発生しました: ${e.toString()}'
-      );
-    }
-  }
-
-  Future<bool> _isAndroid12OrHigher() async {
-    if (!Platform.isAndroid) return false;
-    
-    try {
-      final deviceInfo = DeviceInfoPlugin();
-      final androidInfo = await deviceInfo.androidInfo;
-      
-      // Android 12 is API level 31
-      return androidInfo.version.sdkInt >= 31;
-    } catch (e) {
-      // If device info fails, assume modern Android for safety
-      // This ensures we request the more restrictive permissions
-      print('Failed to get Android version info, assuming Android 12+: $e');
-      return true;
-    }
+    return _permissionManager.checkAndRequestPermissions();
   }
 
   @override
@@ -188,7 +66,6 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
       await initializeIfNeeded();
       await checkAndRequestPermissions();
 
-      // Check if already connected
       if (_connectedDevice != null) {
         final state = await _connectedDevice!.connectionState.first;
         if (state == BluetoothConnectionState.connected) {
@@ -198,51 +75,9 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
 
       updateConnectionState(BleConnectionState.scanning);
 
-      // Start scanning with Heart Rate service filter
-      await FlutterBluePlus.startScan(
-        withServices: [Guid(BleUuids.heartRateService)],
-        timeout: timeout,
-      );
+      final targetDevice = await _scanner.scanForHeartRateDevice(timeout: timeout);
 
-      BluetoothDevice? targetDevice;
-      final scanCompleter = Completer<BluetoothDevice?>();
-
-      // Listen for scan results
-      _scanSubscription?.cancel();
-      _scanSubscription = FlutterBluePlus.scanResults.listen((results) {
-        for (final result in results) {
-          final device = result.device;
-          final name = device.platformName.toLowerCase();
-          final advertisedServices = result.advertisementData.serviceUuids;
-          
-          // Check if device advertises Heart Rate service or is a known heart rate device
-          final hasHeartRateService = advertisedServices.contains(Guid(BleUuids.heartRateService));
-          final isKnownHeartRateDevice = _isKnownHeartRateDevice(name);
-          
-          if (hasHeartRateService || isKnownHeartRateDevice) {
-            targetDevice = device;
-            scanCompleter.complete(device);
-            break;
-          }
-        }
-      });
-
-      // Wait for scan to complete or timeout
-      await Future.any([
-        scanCompleter.future,
-        Future.delayed(timeout),
-      ]);
-
-      await FlutterBluePlus.stopScan();
-      await _scanSubscription?.cancel();
-
-      if (targetDevice == null) {
-        updateConnectionState(BleConnectionState.idle);
-        throw const BleException(BleError.deviceNotFound, 'デバイス未検出');
-      }
-
-      // Connect to the device
-      return await connectToDevice(targetDevice!.remoteId.str, timeout: timeout);
+      return await connectToDevice(targetDevice.remoteId.str, timeout: timeout);
 
     } catch (e) {
       updateConnectionState(BleConnectionState.error);
@@ -256,7 +91,6 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
     try {
       updateConnectionState(BleConnectionState.connecting);
 
-      // Find device by ID
       BluetoothDevice? device;
       final connectedDevices = FlutterBluePlus.connectedDevices;
       
@@ -267,23 +101,13 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
         }
       }
 
-      if (device == null) {
-        // Device not found in connected devices, try to create from ID
-        device = BluetoothDevice.fromId(deviceId);
-      }
-
+      device ??= BluetoothDevice.fromId(deviceId);
       _connectedDevice = device;
 
-      // Connect to device
       await device.connect(timeout: timeout, autoConnect: false);
-
-      // Set up connection state monitoring
       await _setupConnectionMonitoring();
-
-      // Discover services and subscribe to heart rate notifications
       await _discoverAndSubscribe();
 
-      // Create device info
       final deviceInfo = DeviceInfo(
         id: device.remoteId.str,
         platformName: device.platformName,
@@ -292,13 +116,11 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
       updateCurrentDevice(deviceInfo);
       updateConnectionState(BleConnectionState.connected);
       
-      // Reset all error recovery state on successful connection
       _reconnectAttempts = 0;
       _consecutiveErrors = 0;
       _lastSuccessfulConnection = DateTime.now();
       _isReconnecting = false;
       
-      // Start health monitoring for the new connection
       _startConnectionHealthMonitoring();
 
       return deviceInfo;
@@ -313,7 +135,6 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
   Future<void> _setupConnectionMonitoring() async {
     if (_connectedDevice == null) return;
 
-    // Listen for connection state changes
     _connectionSubscription?.cancel();
     _connectionSubscription = _connectedDevice!.connectionState.listen((state) {
       switch (state) {
@@ -337,7 +158,6 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
       final services = await _connectedDevice!.discoverServices();
       BluetoothCharacteristic? heartRateCharacteristic;
 
-      // Find Heart Rate Measurement characteristic
       for (final service in services) {
         if (service.uuid == Guid(BleUuids.heartRateService)) {
           for (final characteristic in service.characteristics) {
@@ -349,17 +169,14 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
         }
       }
 
-      // Fallback: search in all services
       heartRateCharacteristic ??= _findHeartRateCharacteristic(services);
 
       if (heartRateCharacteristic == null) {
         throw const BleException(BleError.characteristicNotFound, 'Heart Rate Measurement characteristic not found');
       }
 
-      // Enable notifications
       await heartRateCharacteristic.setNotifyValue(true);
 
-      // Subscribe to heart rate data
       _notificationSubscription?.cancel();
       _notificationSubscription = heartRateCharacteristic.onValueReceived.listen((data) {
         try {
@@ -386,18 +203,6 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
     return null;
   }
 
-  bool _isKnownHeartRateDevice(String deviceName) {
-    final knownDevices = ['coospo', 'hw9', 'polar', 'garmin', 'wahoo', 'suunto', 'decathlon'];
-    final lowerName = deviceName.toLowerCase();
-    
-    for (final known in knownDevices) {
-      if (lowerName.contains(known)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
   void _handleDisconnection() {
     updateCurrentDevice(null);
     _stopConnectionHealthMonitoring();
@@ -407,7 +212,6 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
     }
   }
 
-  /// Schedule reconnection with exponential backoff and jitter
   void _scheduleReconnection() {
     if (_reconnectAttempts >= _maxReconnectAttempts) {
       print('最大再接続試行回数に達しました。手動で再接続してください。');
@@ -415,12 +219,10 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
       return;
     }
 
-    // Calculate delay with exponential backoff and jitter
     final baseDelay = _baseReconnectDelay.inSeconds * (1 << _reconnectAttempts);
     final maxDelay = _maxReconnectDelay.inSeconds;
     final delaySeconds = baseDelay.clamp(2, maxDelay);
     
-    // Add jitter (±25%) to prevent thundering herd
     final jitter = (delaySeconds * 0.25 * (2 * (DateTime.now().millisecond / 1000.0) - 1)).round();
     final finalDelay = Duration(seconds: (delaySeconds + jitter).clamp(1, maxDelay));
 
@@ -430,7 +232,6 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
     _reconnectTimer = Timer(finalDelay, () => _attemptReconnection());
   }
 
-  /// Attempt reconnection with comprehensive error handling
   Future<void> _attemptReconnection() async {
     if (_disposed || _isReconnecting) return;
 
@@ -441,22 +242,18 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
       print('再接続を試行中... (${_reconnectAttempts}/$_maxReconnectAttempts)');
       updateConnectionState(BleConnectionState.connecting);
 
-      // Check if device is still available before attempting connection
       if (!await _isDeviceStillAvailable()) {
         throw const BleException(BleError.deviceNotFound, 'デバイスが利用できません');
       }
 
-      // Attempt connection with shorter timeout for retry
       await _connectedDevice!.connect(
         timeout: const Duration(seconds: 8),
         autoConnect: false,
       );
 
-      // Re-setup connection monitoring and services
       await _setupConnectionMonitoring();
       await _discoverAndSubscribe();
 
-      // Success - reset error counters
       _reconnectAttempts = 0;
       _consecutiveErrors = 0;
       _lastSuccessfulConnection = DateTime.now();
@@ -478,7 +275,6 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
         return;
       }
 
-      // Schedule next retry if under limit
       if (_reconnectAttempts < _maxReconnectAttempts) {
         updateConnectionState(BleConnectionState.disconnected);
         _scheduleReconnection();
@@ -490,12 +286,10 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
     }
   }
 
-  /// Check if device is still available/discoverable
   Future<bool> _isDeviceStillAvailable() async {
     if (_connectedDevice == null) return false;
 
     try {
-      // Quick scan to check if device is advertising
       await FlutterBluePlus.startScan(
         withServices: [Guid(BleUuids.heartRateService)],
         timeout: const Duration(seconds: 3),
@@ -508,16 +302,17 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
         for (final result in results) {
           if (result.device.remoteId.str == _connectedDevice!.remoteId.str) {
             deviceFound = true;
-            scanCompleter.complete(true);
+            if (!scanCompleter.isCompleted) scanCompleter.complete(true);
             break;
           }
         }
       });
 
-      // Wait for device or timeout
       await Future.any([
         scanCompleter.future,
-        Future.delayed(const Duration(seconds: 3), () => scanCompleter.complete(false)),
+        Future.delayed(const Duration(seconds: 3), () {
+           if (!scanCompleter.isCompleted) scanCompleter.complete(false);
+        }),
       ]);
 
       await subscription.cancel();
@@ -526,11 +321,10 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
       return deviceFound;
     } catch (e) {
       print('デバイス可用性チェック中にエラー: $e');
-      return false; // Assume unavailable on error
+      return false;
     }
   }
 
-  /// Start connection health monitoring
   void _startConnectionHealthMonitoring() {
     _stopConnectionHealthMonitoring();
 
@@ -544,20 +338,17 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
     });
   }
 
-  /// Stop connection health monitoring
   void _stopConnectionHealthMonitoring() {
     _connectionHealthTimer?.cancel();
     _connectionHealthTimer = null;
   }
 
-  /// Check connection health and trigger recovery if needed
   void _checkConnectionHealth() async {
     if (_connectedDevice == null || connectionState != BleConnectionState.connected) {
       return;
     }
 
     try {
-      // Check if we're still receiving data
       final now = DateTime.now();
       final performanceMetrics = getPerformanceMetrics();
       final lastDataReceived = performanceMetrics['lastDataReceived'] as String?;
@@ -573,7 +364,6 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
         }
       }
 
-      // Check physical connection state
       final connectionState = await _connectedDevice!.connectionState.first;
       if (connectionState != BluetoothConnectionState.connected) {
         print('デバイスが物理的に切断されました');
@@ -590,25 +380,21 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
     }
   }
 
-  /// Handle stale connection by forcing reconnection
   void _handleStaleConnection() {
     print('停止した接続を検出しました。強制再接続を開始します。');
     _forceReconnection();
   }
 
-  /// Force reconnection by disconnecting and reconnecting
   Future<void> _forceReconnection() async {
     if (_disposed || _isReconnecting) return;
 
     try {
-      // Force disconnect
       if (_connectedDevice != null) {
         await _connectedDevice!.disconnect();
       }
       
       updateConnectionState(BleConnectionState.disconnected);
       
-      // Wait a moment then trigger reconnection
       await Future.delayed(const Duration(seconds: 1));
       _handleDisconnection();
       
@@ -618,7 +404,6 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
     }
   }
 
-  /// Get connection reliability metrics
   Map<String, dynamic> getConnectionMetrics() {
     final now = DateTime.now();
     return {
@@ -634,7 +419,6 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
     };
   }
 
-  /// Calculate error rate for monitoring
   double _calculateErrorRate() {
     if (_lastSuccessfulConnection == null) return 1.0;
     
@@ -644,7 +428,6 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
     return (_consecutiveErrors / totalTime).clamp(0.0, 1.0);
   }
 
-  /// Reset error recovery state (for manual recovery)
   void resetErrorRecovery() {
     _reconnectAttempts = 0;
     _consecutiveErrors = 0;
@@ -676,8 +459,7 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
 
   @override
   Future<void> stopScan() async {
-    await FlutterBluePlus.stopScan();
-    await _scanSubscription?.cancel();
+    await _scanner.stopScan();
     
     if (connectionState == BleConnectionState.scanning) {
       updateConnectionState(BleConnectionState.idle);
@@ -709,19 +491,15 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
     if (_disposed) return;
     _disposed = true;
     
-    // Cancel all timers first
     _reconnectTimer?.cancel();
     _connectionHealthTimer?.cancel();
     _retryTimer?.cancel();
     
-    // Stop connection monitoring
     _stopConnectionHealthMonitoring();
     
-    // Disconnect and cleanup
     await disconnect();
-    await _scanSubscription?.cancel();
+    await _scanner.stopScan();
     
-    // Reset state
     _isReconnecting = false;
     _reconnectAttempts = 0;
     _consecutiveErrors = 0;
@@ -733,5 +511,4 @@ class BleServiceImplMobile extends BleService with BleServiceMixin {
   }
 }
 
-/// Factory function to create mobile BLE service
 BleService createBleService() => BleServiceImplMobile();
