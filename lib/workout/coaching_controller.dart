@@ -177,6 +177,9 @@ class CoachingController extends StateNotifier<CoachingState> {
        sessionMinutes: 0,
        status: SessionStatus.running,
        reconnecting: false,
+       hasGaps: false,
+       sessionStartTime: DateTime.now(),
+       sessionEndTime: null,
        maxBpm: 0,
        totalBpmSum: 0,
        totalSamples: 0,
@@ -192,7 +195,10 @@ class CoachingController extends StateNotifier<CoachingState> {
   }
 
   void stopSession() {
-     state = state.copyWith(status: SessionStatus.idle);
+     state = state.copyWith(
+       status: SessionStatus.idle,
+       sessionEndTime: DateTime.now(),
+     );
   }
 
   Future<void> resetDay() async {

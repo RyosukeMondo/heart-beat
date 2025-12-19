@@ -13,6 +13,8 @@ class CoachingState {
   final bool reconnecting;
   final bool hasGaps;
   final Duration lastSampleAgo;
+  final DateTime? sessionStartTime;
+  final DateTime? sessionEndTime;
 
   // Session metrics
   final int maxBpm;
@@ -31,6 +33,8 @@ class CoachingState {
     required this.reconnecting,
     this.hasGaps = false,
     required this.lastSampleAgo,
+    this.sessionStartTime,
+    this.sessionEndTime,
     required this.maxBpm,
     required this.totalBpmSum,
     required this.totalSamples,
@@ -74,6 +78,8 @@ class CoachingState {
     bool? reconnecting,
     bool? hasGaps,
     Duration? lastSampleAgo,
+    DateTime? sessionStartTime,
+    DateTime? sessionEndTime,
     int? maxBpm,
     int? totalBpmSum,
     int? totalSamples,
@@ -90,6 +96,8 @@ class CoachingState {
       reconnecting: reconnecting ?? this.reconnecting,
       hasGaps: hasGaps ?? this.hasGaps,
       lastSampleAgo: lastSampleAgo ?? this.lastSampleAgo,
+      sessionStartTime: sessionStartTime ?? this.sessionStartTime,
+      sessionEndTime: sessionEndTime ?? this.sessionEndTime,
       maxBpm: maxBpm ?? this.maxBpm,
       totalBpmSum: totalBpmSum ?? this.totalBpmSum,
       totalSamples: totalSamples ?? this.totalSamples,

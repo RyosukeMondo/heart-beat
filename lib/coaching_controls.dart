@@ -46,9 +46,7 @@ class CoachingControls extends ConsumerWidget {
     if (state.status == SessionStatus.idle) {
       return FloatingActionButton.extended(
         onPressed: () {
-          final ws = context.read<WorkoutSettings>();
-          final (lower, upper) = ws.targetRange();
-          controller.startSession(30, lower, upper);
+          controller.startSession();
         },
         label: const Text('START SESSION'),
         icon: const Icon(Icons.play_arrow),
@@ -62,6 +60,7 @@ class CoachingControls extends ConsumerWidget {
             label: const Text('RESUME'),
             icon: const Icon(Icons.play_arrow),
             backgroundColor: Colors.green,
+            foregroundColor: Colors.white,
           ),
           const SizedBox(width: 24),
           FloatingActionButton.extended(
@@ -69,6 +68,7 @@ class CoachingControls extends ConsumerWidget {
             label: const Text('STOP'),
             icon: const Icon(Icons.stop),
             backgroundColor: Colors.red,
+            foregroundColor: Colors.white,
           ),
         ],
       );
@@ -81,6 +81,7 @@ class CoachingControls extends ConsumerWidget {
             label: const Text('PAUSE'),
             icon: const Icon(Icons.pause),
             backgroundColor: Colors.orange,
+            foregroundColor: Colors.white,
           ),
         ],
       );
@@ -107,18 +108,21 @@ class CoachingControls extends ConsumerWidget {
   void _endSession(BuildContext context, WidgetRef ref) {
     controller.pauseSession();
     final currentState = controller.state;
+    final startTime = currentState.sessionStartTime ?? DateTime.now();
+    final endTime = DateTime.now();
+
     // Show summary
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       isDismissible: false,
       enableDrag: false,
+      backgroundColor: Colors.transparent,
       builder: (ctx) => SessionSummarySheet(
         session: SessionRecord(
-          id: DateTime.now().toIso8601String(),
-          start: DateTime.now()
-              .subtract(Duration(minutes: currentState.sessionMinutes)),
-          end: DateTime.now(),
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          start: startTime,
+          end: endTime,
           avgBpm: currentState.avgBpm,
           maxBpm: currentState.maxBpm,
           minutesInZone: currentState.sessionMinutes,
@@ -126,10 +130,9 @@ class CoachingControls extends ConsumerWidget {
         ),
         onSave: (rpe) async {
           final session = SessionRecord(
-            id: DateTime.now().toIso8601String(),
-            start: DateTime.now()
-                .subtract(Duration(minutes: currentState.sessionMinutes)),
-            end: DateTime.now(),
+            id: DateTime.now().millisecondsSinceEpoch.toString(),
+            start: startTime,
+            end: endTime,
             avgBpm: currentState.avgBpm,
             maxBpm: currentState.maxBpm,
             minutesInZone: currentState.sessionMinutes,
@@ -138,10 +141,16 @@ class CoachingControls extends ConsumerWidget {
 
           final repo = ref.read(sessionRepositoryProvider);
           await repo.saveSession(session);
+          
+          controller.stopSession();
 
           if (context.mounted) {
-            ScaffoldMessenger.of(context)
-                .showSnackBar(const SnackBar(content: Text('Session Saved!')));
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('セッションが保存されました'),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
           }
         },
       ),
