@@ -4,16 +4,19 @@ import 'package:heart_beat/ble/ble_service.dart';
 import 'package:heart_beat/ble/ble_types.dart';
 import 'package:heart_beat/workout/coaching_controller.dart';
 import 'package:heart_beat/workout/coaching_state.dart';
+import 'package:heart_beat/workout/workout_settings.dart';
+import 'package:heart_beat/providers.dart';
 import 'package:mockito/annotations.dart';
 import 'package:mockito/mockito.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-@GenerateMocks([BleService])
+@GenerateMocks([BleService, WorkoutSettings])
 import 'coaching_controller_test.mocks.dart';
 
 void main() {
   late MockBleService mockBleService;
+  late MockWorkoutSettings mockWorkoutSettings;
   late StreamController<int> heartRateController;
   late StreamController<BleConnectionState> connectionStateController;
   late ProviderContainer container;
@@ -22,17 +25,27 @@ void main() {
     SharedPreferences.setMockInitialValues({});
 
     mockBleService = MockBleService();
+    mockWorkoutSettings = MockWorkoutSettings();
     heartRateController = StreamController<int>.broadcast();
     connectionStateController = StreamController<BleConnectionState>.broadcast();
 
     when(mockBleService.heartRateStream).thenAnswer((_) => heartRateController.stream);
     when(mockBleService.connectionStateStream).thenAnswer((_) => connectionStateController.stream);
+    when(mockWorkoutSettings.targetRange()).thenReturn((120, 150));
+    when(mockWorkoutSettings.selectedCustomConfig).thenReturn(null);
 
     container = ProviderContainer(
       overrides: [
         bleServiceProvider.overrideWithValue(mockBleService),
+        workoutSettingsProvider.overrideWith((ref) => mockWorkoutSettings),
       ],
     );
+
+    // Trigger creation
+    container.read(coachingControllerProvider.notifier);
+
+    // Give some time for CoachingController._initialize() to run its async parts
+    await Future.delayed(const Duration(milliseconds: 50));
   });
 
   tearDown(() {
@@ -54,7 +67,7 @@ void main() {
     final controller = container.read(coachingControllerProvider.notifier);
 
     // Set targets: 120 - 150
-    controller.startSession(30, 120, 150);
+    controller.startSession(targetMinutes: 30, lowerBpm: 120, upperBpm: 150);
 
     // Test UP cue
     heartRateController.add(110);
@@ -105,7 +118,32 @@ void main() {
      // Let's just verify that startSession resets accumulation.
 
     final controller = container.read(coachingControllerProvider.notifier);
-    controller.startSession(30, 120, 150);
+    controller.startSession(targetMinutes: 30, lowerBpm: 120, upperBpm: 150);
     expect(controller.state.sessionMinutes, 0);
+  });
+
+  test('Day rollover resets daily minutes', () async {
+    final prefs = await SharedPreferences.getInstance();
+    final yesterday = DateTime.now().subtract(const Duration(days: 1));
+    final yesterdayStr = "${yesterday.year}-${yesterday.month}-${yesterday.day}";
+    
+    await prefs.setString('coaching.lastDate', yesterdayStr);
+    await prefs.setInt('coaching.dailyMinutes', 45);
+
+    // Create a new container to trigger a new controller initialization
+    final rolloverContainer = ProviderContainer(
+      overrides: [
+        bleServiceProvider.overrideWithValue(mockBleService),
+        workoutSettingsProvider.overrideWith((ref) => mockWorkoutSettings),
+      ],
+    );
+
+    rolloverContainer.read(coachingControllerProvider.notifier);
+    await Future.delayed(const Duration(milliseconds: 50));
+
+    final state = rolloverContainer.read(coachingControllerProvider);
+    expect(state.dailyMinutes, 0);
+    
+    rolloverContainer.dispose();
   });
 }

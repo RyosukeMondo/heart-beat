@@ -3,19 +3,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../ble/ble_service.dart';
 import '../ble/ble_types.dart';
+import 'workout_settings.dart';
 import 'coaching_state.dart';
 import 'dart:math';
+import '../providers.dart';
 
 // Assuming we will have a provider for BleService
 final bleServiceProvider = Provider<BleService>((ref) => BleService());
 
 final coachingControllerProvider = StateNotifierProvider<CoachingController, CoachingState>((ref) {
   final bleService = ref.watch(bleServiceProvider);
-  return CoachingController(bleService);
+  final workoutSettings = ref.watch(workoutSettingsProvider);
+  return CoachingController(bleService, workoutSettings);
 });
 
 class CoachingController extends StateNotifier<CoachingState> {
   final BleService _bleService;
+  final WorkoutSettings _workoutSettings;
   StreamSubscription<int>? _heartRateSubscription;
   StreamSubscription<BleConnectionState>? _connectionStateSubscription;
   Timer? _minuteAccumulatorTimer;
@@ -25,12 +29,13 @@ class CoachingController extends StateNotifier<CoachingState> {
   static const String _kDailyMinutes = 'coaching.dailyMinutes';
   static const String _kLastDate = 'coaching.lastDate';
 
-  CoachingController(this._bleService) : super(CoachingState.initial()) {
+  CoachingController(this._bleService, this._workoutSettings) : super(CoachingState.initial()) {
     _initialize();
   }
 
   Future<void> _initialize() async {
     await _loadDailyProgress();
+    if (!mounted) return;
 
     // Listen to heart rate stream
     _heartRateSubscription = _bleService.heartRateStream.listen((bpm) {
@@ -39,6 +44,7 @@ class CoachingController extends StateNotifier<CoachingState> {
 
     // Listen to connection state
     _connectionStateSubscription = _bleService.connectionStateStream.listen((connState) {
+      if (!mounted) return;
       if (connState == BleConnectionState.disconnected || connState == BleConnectionState.error) {
          if (state.status == SessionStatus.running) {
             state = state.copyWith(reconnecting: true, status: SessionStatus.paused);
@@ -58,6 +64,7 @@ class CoachingController extends StateNotifier<CoachingState> {
 
     // Timer to track time since last sample
     _lastSampleTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
       if (_lastHeartRateTime != null) {
         state = state.copyWith(lastSampleAgo: DateTime.now().difference(_lastHeartRateTime!));
       }
@@ -65,6 +72,7 @@ class CoachingController extends StateNotifier<CoachingState> {
 
     // Timer to accumulate minutes in zone
     _minuteAccumulatorTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
       if (state.status == SessionStatus.running && !state.reconnecting && _isInZone(state.currentBpm)) {
         _secondsInZone++;
         if (_secondsInZone >= 60) {
@@ -84,6 +92,7 @@ class CoachingController extends StateNotifier<CoachingState> {
 
   Future<void> _loadDailyProgress() async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     final lastDateStr = prefs.getString(_kLastDate);
     final now = DateTime.now();
     final todayStr = "${now.year}-${now.month}-${now.day}";
@@ -94,16 +103,20 @@ class CoachingController extends StateNotifier<CoachingState> {
     } else {
       // New day, reset
       await prefs.setString(_kLastDate, todayStr);
+      if (!mounted) return;
       await prefs.setInt(_kDailyMinutes, 0);
+      if (!mounted) return;
       state = state.copyWith(dailyMinutes: 0);
     }
   }
 
   Future<void> _saveDailyProgress(int minutes) async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     final now = DateTime.now();
     final todayStr = "${now.year}-${now.month}-${now.day}";
     await prefs.setString(_kLastDate, todayStr);
+    if (!mounted) return;
     await prefs.setInt(_kDailyMinutes, minutes);
   }
 
@@ -146,12 +159,17 @@ class CoachingController extends StateNotifier<CoachingState> {
     return bpm >= state.targetLowerBpm && bpm <= state.targetUpperBpm;
   }
 
-  void startSession(int targetMinutes, int lowerBpm, int upperBpm) {
+  void startSession({int? targetMinutes, int? lowerBpm, int? upperBpm}) {
      _secondsInZone = 0;
+     
+     final (defaultLower, defaultUpper) = _workoutSettings.targetRange();
+     final config = _workoutSettings.selectedCustomConfig;
+     final defaultTargetMinutes = config?.durationInMinutes ?? 30;
+
      state = state.copyWith(
-       targetMinutes: targetMinutes,
-       targetLowerBpm: lowerBpm,
-       targetUpperBpm: upperBpm,
+       targetMinutes: targetMinutes ?? defaultTargetMinutes,
+       targetLowerBpm: lowerBpm ?? defaultLower,
+       targetUpperBpm: upperBpm ?? defaultUpper,
        sessionMinutes: 0,
        status: SessionStatus.running,
        reconnecting: false,

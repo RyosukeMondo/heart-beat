@@ -14,6 +14,7 @@ import 'auth/auth_settings.dart';
 import 'auth/login_page.dart';
 import 'ble/ble_service.dart';
 import 'ble/ble_types.dart';
+import 'providers.dart';
 
 import 'workout/coaching_controller.dart';
 import 'workout/coaching_state.dart';
@@ -30,17 +31,21 @@ void main() {
   );
 }
 
-class HeartBeatApp extends StatelessWidget {
+class HeartBeatApp extends ConsumerWidget {
   const HeartBeatApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    // We keep MultiProvider for legacy parts or parts not yet migrated to Riverpod
+  Widget build(BuildContext context, WidgetRef ref) {
+    // We bridge Riverpod providers to legacy MultiProvider for parts not yet migrated
+    final playerSettings = ref.watch(playerSettingsProvider);
+    final workoutSettings = ref.watch(workoutSettingsProvider);
+    final authSettings = ref.watch(authSettingsProvider);
+
     return MultiProvider(
       providers: [
-        p.ChangeNotifierProvider(create: (_) => PlayerSettings()..load()),
-        p.ChangeNotifierProvider(create: (_) => WorkoutSettings()..load()),
-        p.ChangeNotifierProvider(create: (_) => AuthSettings()),
+        p.ChangeNotifierProvider.value(value: playerSettings),
+        p.ChangeNotifierProvider.value(value: workoutSettings),
+        p.ChangeNotifierProvider.value(value: authSettings),
       ],
       child: MaterialApp(
         title: 'Heart Beat',

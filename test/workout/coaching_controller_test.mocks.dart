@@ -3,10 +3,15 @@
 // Do not manually edit this file.
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
-import 'dart:async' as _i3;
+import 'dart:async' as _i5;
+import 'dart:ui' as _i9;
 
-import 'package:heart_beat/ble/ble_service.dart' as _i2;
-import 'package:heart_beat/ble/ble_types.dart' as _i4;
+import 'package:heart_beat/ble/ble_service.dart' as _i4;
+import 'package:heart_beat/ble/ble_types.dart' as _i6;
+import 'package:heart_beat/player/settings.dart' as _i8;
+import 'package:heart_beat/workout/profile.dart' as _i2;
+import 'package:heart_beat/workout/workout_config.dart' as _i3;
+import 'package:heart_beat/workout/workout_settings.dart' as _i7;
 import 'package:mockito/mockito.dart' as _i1;
 
 // ignore_for_file: type=lint
@@ -24,37 +29,48 @@ import 'package:mockito/mockito.dart' as _i1;
 // ignore_for_file: subtype_of_sealed_class
 // ignore_for_file: invalid_use_of_internal_member
 
+class _FakeWorkoutProfile_0 extends _i1.SmartFake
+    implements _i2.WorkoutProfile {
+  _FakeWorkoutProfile_0(Object parent, Invocation parentInvocation)
+    : super(parent, parentInvocation);
+}
+
+class _FakeWorkoutConfig_1 extends _i1.SmartFake implements _i3.WorkoutConfig {
+  _FakeWorkoutConfig_1(Object parent, Invocation parentInvocation)
+    : super(parent, parentInvocation);
+}
+
 /// A class which mocks [BleService].
 ///
 /// See the documentation for Mockito's code generation for more information.
-class MockBleService extends _i1.Mock implements _i2.BleService {
+class MockBleService extends _i1.Mock implements _i4.BleService {
   MockBleService() {
     _i1.throwOnMissingStub(this);
   }
 
   @override
-  _i3.Stream<_i4.BleConnectionState> get connectionStateStream =>
+  _i5.Stream<_i6.BleConnectionState> get connectionStateStream =>
       (super.noSuchMethod(
             Invocation.getter(#connectionStateStream),
-            returnValue: _i3.Stream<_i4.BleConnectionState>.empty(),
+            returnValue: _i5.Stream<_i6.BleConnectionState>.empty(),
           )
-          as _i3.Stream<_i4.BleConnectionState>);
+          as _i5.Stream<_i6.BleConnectionState>);
 
   @override
-  _i3.Stream<int> get heartRateStream =>
+  _i5.Stream<int> get heartRateStream =>
       (super.noSuchMethod(
             Invocation.getter(#heartRateStream),
-            returnValue: _i3.Stream<int>.empty(),
+            returnValue: _i5.Stream<int>.empty(),
           )
-          as _i3.Stream<int>);
+          as _i5.Stream<int>);
 
   @override
-  _i4.BleConnectionState get connectionState =>
+  _i6.BleConnectionState get connectionState =>
       (super.noSuchMethod(
             Invocation.getter(#connectionState),
-            returnValue: _i4.BleConnectionState.idle,
+            returnValue: _i6.BleConnectionState.idle,
           )
-          as _i4.BleConnectionState);
+          as _i6.BleConnectionState);
 
   @override
   bool get isConnected =>
@@ -67,54 +83,54 @@ class MockBleService extends _i1.Mock implements _i2.BleService {
           as bool);
 
   @override
-  _i3.Future<void> initializeIfNeeded() =>
+  _i5.Future<void> initializeIfNeeded() =>
       (super.noSuchMethod(
             Invocation.method(#initializeIfNeeded, []),
-            returnValue: _i3.Future<void>.value(),
-            returnValueForMissingStub: _i3.Future<void>.value(),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
           )
-          as _i3.Future<void>);
+          as _i5.Future<void>);
 
   @override
-  _i3.Future<_i4.DeviceInfo?> scanAndConnect({
+  _i5.Future<_i6.DeviceInfo?> scanAndConnect({
     Duration? timeout = const Duration(seconds: 10),
   }) =>
       (super.noSuchMethod(
             Invocation.method(#scanAndConnect, [], {#timeout: timeout}),
-            returnValue: _i3.Future<_i4.DeviceInfo?>.value(),
+            returnValue: _i5.Future<_i6.DeviceInfo?>.value(),
           )
-          as _i3.Future<_i4.DeviceInfo?>);
+          as _i5.Future<_i6.DeviceInfo?>);
 
   @override
-  _i3.Future<void> disconnect() =>
+  _i5.Future<void> disconnect() =>
       (super.noSuchMethod(
             Invocation.method(#disconnect, []),
-            returnValue: _i3.Future<void>.value(),
-            returnValueForMissingStub: _i3.Future<void>.value(),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
           )
-          as _i3.Future<void>);
+          as _i5.Future<void>);
 
   @override
-  _i3.Future<void> stopScan() =>
+  _i5.Future<void> stopScan() =>
       (super.noSuchMethod(
             Invocation.method(#stopScan, []),
-            returnValue: _i3.Future<void>.value(),
-            returnValueForMissingStub: _i3.Future<void>.value(),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
           )
-          as _i3.Future<void>);
+          as _i5.Future<void>);
 
   @override
-  _i3.Future<List<_i4.DeviceInfo>> getKnownDevices() =>
+  _i5.Future<List<_i6.DeviceInfo>> getKnownDevices() =>
       (super.noSuchMethod(
             Invocation.method(#getKnownDevices, []),
-            returnValue: _i3.Future<List<_i4.DeviceInfo>>.value(
-              <_i4.DeviceInfo>[],
+            returnValue: _i5.Future<List<_i6.DeviceInfo>>.value(
+              <_i6.DeviceInfo>[],
             ),
           )
-          as _i3.Future<List<_i4.DeviceInfo>>);
+          as _i5.Future<List<_i6.DeviceInfo>>);
 
   @override
-  _i3.Future<_i4.DeviceInfo?> connectToDevice(
+  _i5.Future<_i6.DeviceInfo?> connectToDevice(
     String? deviceId, {
     Duration? timeout = const Duration(seconds: 10),
   }) =>
@@ -124,24 +140,324 @@ class MockBleService extends _i1.Mock implements _i2.BleService {
               [deviceId],
               {#timeout: timeout},
             ),
-            returnValue: _i3.Future<_i4.DeviceInfo?>.value(),
+            returnValue: _i5.Future<_i6.DeviceInfo?>.value(),
           )
-          as _i3.Future<_i4.DeviceInfo?>);
+          as _i5.Future<_i6.DeviceInfo?>);
 
   @override
-  _i3.Future<bool> checkAndRequestPermissions() =>
+  _i5.Future<bool> checkAndRequestPermissions() =>
       (super.noSuchMethod(
             Invocation.method(#checkAndRequestPermissions, []),
-            returnValue: _i3.Future<bool>.value(false),
+            returnValue: _i5.Future<bool>.value(false),
           )
-          as _i3.Future<bool>);
+          as _i5.Future<bool>);
 
   @override
-  _i3.Future<void> dispose() =>
+  _i5.Future<void> dispose() =>
       (super.noSuchMethod(
             Invocation.method(#dispose, []),
-            returnValue: _i3.Future<void>.value(),
-            returnValueForMissingStub: _i3.Future<void>.value(),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
           )
-          as _i3.Future<void>);
+          as _i5.Future<void>);
+}
+
+/// A class which mocks [WorkoutSettings].
+///
+/// See the documentation for Mockito's code generation for more information.
+class MockWorkoutSettings extends _i1.Mock implements _i7.WorkoutSettings {
+  MockWorkoutSettings() {
+    _i1.throwOnMissingStub(this);
+  }
+
+  @override
+  int get age =>
+      (super.noSuchMethod(Invocation.getter(#age), returnValue: 0) as int);
+
+  @override
+  _i2.Gender get gender =>
+      (super.noSuchMethod(
+            Invocation.getter(#gender),
+            returnValue: _i2.Gender.male,
+          )
+          as _i2.Gender);
+
+  @override
+  _i7.WorkoutType get selected =>
+      (super.noSuchMethod(
+            Invocation.getter(#selected),
+            returnValue: _i7.WorkoutType.recovery,
+          )
+          as _i7.WorkoutType);
+
+  @override
+  _i2.WorkoutProfile get profile =>
+      (super.noSuchMethod(
+            Invocation.getter(#profile),
+            returnValue: _FakeWorkoutProfile_0(
+              this,
+              Invocation.getter(#profile),
+            ),
+          )
+          as _i2.WorkoutProfile);
+
+  @override
+  List<_i3.WorkoutConfig> get customConfigs =>
+      (super.noSuchMethod(
+            Invocation.getter(#customConfigs),
+            returnValue: <_i3.WorkoutConfig>[],
+          )
+          as List<_i3.WorkoutConfig>);
+
+  @override
+  List<_i3.WorkoutConfig> get defaultConfigs =>
+      (super.noSuchMethod(
+            Invocation.getter(#defaultConfigs),
+            returnValue: <_i3.WorkoutConfig>[],
+          )
+          as List<_i3.WorkoutConfig>);
+
+  @override
+  List<_i3.WorkoutConfig> get allConfigs =>
+      (super.noSuchMethod(
+            Invocation.getter(#allConfigs),
+            returnValue: <_i3.WorkoutConfig>[],
+          )
+          as List<_i3.WorkoutConfig>);
+
+  @override
+  bool get isUsingCustomConfig =>
+      (super.noSuchMethod(
+            Invocation.getter(#isUsingCustomConfig),
+            returnValue: false,
+          )
+          as bool);
+
+  @override
+  set age(int? value) => super.noSuchMethod(
+    Invocation.setter(#age, value),
+    returnValueForMissingStub: null,
+  );
+
+  @override
+  set gender(_i2.Gender? value) => super.noSuchMethod(
+    Invocation.setter(#gender, value),
+    returnValueForMissingStub: null,
+  );
+
+  @override
+  set restingHr(int? value) => super.noSuchMethod(
+    Invocation.setter(#restingHr, value),
+    returnValueForMissingStub: null,
+  );
+
+  @override
+  set selected(_i7.WorkoutType? value) => super.noSuchMethod(
+    Invocation.setter(#selected, value),
+    returnValueForMissingStub: null,
+  );
+
+  @override
+  bool get hasListeners =>
+      (super.noSuchMethod(Invocation.getter(#hasListeners), returnValue: false)
+          as bool);
+
+  @override
+  _i5.Future<void> load() =>
+      (super.noSuchMethod(
+            Invocation.method(#load, []),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
+          )
+          as _i5.Future<void>);
+
+  @override
+  _i5.Future<void> updateProfile({
+    int? age,
+    _i2.Gender? gender,
+    int? restingHr,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#updateProfile, [], {
+              #age: age,
+              #gender: gender,
+              #restingHr: restingHr,
+            }),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
+          )
+          as _i5.Future<void>);
+
+  @override
+  _i5.Future<void> selectWorkout(_i7.WorkoutType? t) =>
+      (super.noSuchMethod(
+            Invocation.method(#selectWorkout, [t]),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
+          )
+          as _i5.Future<void>);
+
+  @override
+  (int, int) targetRange() =>
+      (super.noSuchMethod(
+            Invocation.method(#targetRange, []),
+            returnValue: (0, 0),
+          )
+          as (int, int));
+
+  @override
+  _i5.Future<void> applyToPlayer(_i8.PlayerSettings? s) =>
+      (super.noSuchMethod(
+            Invocation.method(#applyToPlayer, [s]),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
+          )
+          as _i5.Future<void>);
+
+  @override
+  _i5.Future<_i3.WorkoutConfig> createWorkoutConfig({
+    required String? name,
+    required int? minHeartRate,
+    required int? maxHeartRate,
+    required Duration? duration,
+    required String? description,
+    int? intensityLevel = 3,
+    String? colorCode = '#2196F3',
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#createWorkoutConfig, [], {
+              #name: name,
+              #minHeartRate: minHeartRate,
+              #maxHeartRate: maxHeartRate,
+              #duration: duration,
+              #description: description,
+              #intensityLevel: intensityLevel,
+              #colorCode: colorCode,
+            }),
+            returnValue: _i5.Future<_i3.WorkoutConfig>.value(
+              _FakeWorkoutConfig_1(
+                this,
+                Invocation.method(#createWorkoutConfig, [], {
+                  #name: name,
+                  #minHeartRate: minHeartRate,
+                  #maxHeartRate: maxHeartRate,
+                  #duration: duration,
+                  #description: description,
+                  #intensityLevel: intensityLevel,
+                  #colorCode: colorCode,
+                }),
+              ),
+            ),
+          )
+          as _i5.Future<_i3.WorkoutConfig>);
+
+  @override
+  _i5.Future<_i3.WorkoutConfig> updateWorkoutConfig(
+    String? id, {
+    String? name,
+    int? minHeartRate,
+    int? maxHeartRate,
+    Duration? duration,
+    String? description,
+    int? intensityLevel,
+    String? colorCode,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(
+              #updateWorkoutConfig,
+              [id],
+              {
+                #name: name,
+                #minHeartRate: minHeartRate,
+                #maxHeartRate: maxHeartRate,
+                #duration: duration,
+                #description: description,
+                #intensityLevel: intensityLevel,
+                #colorCode: colorCode,
+              },
+            ),
+            returnValue: _i5.Future<_i3.WorkoutConfig>.value(
+              _FakeWorkoutConfig_1(
+                this,
+                Invocation.method(
+                  #updateWorkoutConfig,
+                  [id],
+                  {
+                    #name: name,
+                    #minHeartRate: minHeartRate,
+                    #maxHeartRate: maxHeartRate,
+                    #duration: duration,
+                    #description: description,
+                    #intensityLevel: intensityLevel,
+                    #colorCode: colorCode,
+                  },
+                ),
+              ),
+            ),
+          )
+          as _i5.Future<_i3.WorkoutConfig>);
+
+  @override
+  _i5.Future<bool> deleteWorkoutConfig(String? id) =>
+      (super.noSuchMethod(
+            Invocation.method(#deleteWorkoutConfig, [id]),
+            returnValue: _i5.Future<bool>.value(false),
+          )
+          as _i5.Future<bool>);
+
+  @override
+  _i5.Future<void> selectCustomWorkout(String? configId) =>
+      (super.noSuchMethod(
+            Invocation.method(#selectCustomWorkout, [configId]),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
+          )
+          as _i5.Future<void>);
+
+  @override
+  _i5.Future<void> clearCustomWorkoutSelection() =>
+      (super.noSuchMethod(
+            Invocation.method(#clearCustomWorkoutSelection, []),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
+          )
+          as _i5.Future<void>);
+
+  @override
+  _i3.WorkoutConfig? getWorkoutConfigById(String? id) =>
+      (super.noSuchMethod(Invocation.method(#getWorkoutConfigById, [id]))
+          as _i3.WorkoutConfig?);
+
+  @override
+  _i5.Future<void> refreshDefaultConfigs() =>
+      (super.noSuchMethod(
+            Invocation.method(#refreshDefaultConfigs, []),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
+          )
+          as _i5.Future<void>);
+
+  @override
+  void addListener(_i9.VoidCallback? listener) => super.noSuchMethod(
+    Invocation.method(#addListener, [listener]),
+    returnValueForMissingStub: null,
+  );
+
+  @override
+  void removeListener(_i9.VoidCallback? listener) => super.noSuchMethod(
+    Invocation.method(#removeListener, [listener]),
+    returnValueForMissingStub: null,
+  );
+
+  @override
+  void dispose() => super.noSuchMethod(
+    Invocation.method(#dispose, []),
+    returnValueForMissingStub: null,
+  );
+
+  @override
+  void notifyListeners() => super.noSuchMethod(
+    Invocation.method(#notifyListeners, []),
+    returnValueForMissingStub: null,
+  );
 }
