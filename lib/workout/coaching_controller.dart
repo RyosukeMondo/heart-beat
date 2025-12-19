@@ -47,7 +47,11 @@ class CoachingController extends StateNotifier<CoachingState> {
       if (!mounted) return;
       if (connState == BleConnectionState.disconnected || connState == BleConnectionState.error) {
          if (state.status == SessionStatus.running) {
-            state = state.copyWith(reconnecting: true, status: SessionStatus.paused);
+            state = state.copyWith(
+              reconnecting: true, 
+              status: SessionStatus.paused,
+              hasGaps: true, // Mark that a gap occurred
+            );
          } else {
              state = state.copyWith(reconnecting: true);
          }

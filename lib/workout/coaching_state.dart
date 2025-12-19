@@ -11,6 +11,7 @@ class CoachingState {
   final ZoneCue cue;
   final SessionStatus status;
   final bool reconnecting;
+  final bool hasGaps;
   final Duration lastSampleAgo;
 
   // Session metrics
@@ -28,6 +29,7 @@ class CoachingState {
     required this.cue,
     required this.status,
     required this.reconnecting,
+    this.hasGaps = false,
     required this.lastSampleAgo,
     required this.maxBpm,
     required this.totalBpmSum,
@@ -45,6 +47,7 @@ class CoachingState {
       cue: ZoneCue.keep,
       status: SessionStatus.idle,
       reconnecting: false,
+      hasGaps: false,
       lastSampleAgo: Duration.zero,
       maxBpm: 0,
       totalBpmSum: 0,
@@ -69,6 +72,7 @@ class CoachingState {
     ZoneCue? cue,
     SessionStatus? status,
     bool? reconnecting,
+    bool? hasGaps,
     Duration? lastSampleAgo,
     int? maxBpm,
     int? totalBpmSum,
@@ -84,6 +88,7 @@ class CoachingState {
       cue: cue ?? this.cue,
       status: status ?? this.status,
       reconnecting: reconnecting ?? this.reconnecting,
+      hasGaps: hasGaps ?? this.hasGaps,
       lastSampleAgo: lastSampleAgo ?? this.lastSampleAgo,
       maxBpm: maxBpm ?? this.maxBpm,
       totalBpmSum: totalBpmSum ?? this.totalBpmSum,
