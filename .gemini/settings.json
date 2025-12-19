@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "spec-workflow": {
+      "command": "npx",
+      "args": [
+        "@pimzino/spec-workflow-mcp@latest"
+      ]
+    }
+  }
+}
