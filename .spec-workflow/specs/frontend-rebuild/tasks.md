@@ -36,7 +36,7 @@
   - _Requirements: 4, Reliability_
   - _Prompt: Implement the task for spec frontend-rebuild, first run spec-workflow-guide to get the workflow guide then implement the task: Role: Algorithms engineer for training logic | Task: Implement weekly_adapter to calculate plan deltas per requirement 4 using stored sessions and profiles | Restrictions: Deterministic calculations; no floating rounding errors; ensure idempotent weekly runs | _Leverage: lib/workout/session_repository.dart; lib/workout/workout_settings.dart; lib/workout/profile.dart_ | _Requirements: 4,Reliability_ | Success: Unit tests cover progression, hold, and regress scenarios with precise rounding rules_
 
-- [ ] 6. Integrate coaching UI into main experience
+- [x] 6. Integrate coaching UI into main experience
   - Files: `lib/main.dart` (wiring), `lib/workout/workout_config_page.dart` (plan selection), `lib/player/player_page.dart` (overlay hookup as needed)
   - Replace legacy frontend segments with new DailyChargeBar, ZoneMeter, and summary flow; ensure permissions gate session start and reconnection banners surface inline.
   - _Leverage: `lib/ble/ble_service.dart`, `lib/workout/coaching_controller.dart`, `lib/workout/zone_meter.dart`, `lib/workout/daily_charge_bar.dart`, localization strings_

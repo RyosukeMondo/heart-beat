@@ -191,6 +191,19 @@ class MockWorkoutSettings extends _i1.Mock implements _i7.WorkoutSettings {
           as _i7.WorkoutType);
 
   @override
+  int get dailyTargetMinutes =>
+      (super.noSuchMethod(
+            Invocation.getter(#dailyTargetMinutes),
+            returnValue: 0,
+          )
+          as int);
+
+  @override
+  int get intensityOffset =>
+      (super.noSuchMethod(Invocation.getter(#intensityOffset), returnValue: 0)
+          as int);
+
+  @override
   _i2.WorkoutProfile get profile =>
       (super.noSuchMethod(
             Invocation.getter(#profile),
@@ -258,6 +271,18 @@ class MockWorkoutSettings extends _i1.Mock implements _i7.WorkoutSettings {
   );
 
   @override
+  set dailyTargetMinutes(int? value) => super.noSuchMethod(
+    Invocation.setter(#dailyTargetMinutes, value),
+    returnValueForMissingStub: null,
+  );
+
+  @override
+  set intensityOffset(int? value) => super.noSuchMethod(
+    Invocation.setter(#intensityOffset, value),
+    returnValueForMissingStub: null,
+  );
+
+  @override
   bool get hasListeners =>
       (super.noSuchMethod(Invocation.getter(#hasListeners), returnValue: false)
           as bool);
@@ -276,13 +301,24 @@ class MockWorkoutSettings extends _i1.Mock implements _i7.WorkoutSettings {
     int? age,
     _i2.Gender? gender,
     int? restingHr,
+    int? intensityOffset,
   }) =>
       (super.noSuchMethod(
             Invocation.method(#updateProfile, [], {
               #age: age,
               #gender: gender,
               #restingHr: restingHr,
+              #intensityOffset: intensityOffset,
             }),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
+          )
+          as _i5.Future<void>);
+
+  @override
+  _i5.Future<void> updateTargetMinutes(int? minutes) =>
+      (super.noSuchMethod(
+            Invocation.method(#updateTargetMinutes, [minutes]),
             returnValue: _i5.Future<void>.value(),
             returnValueForMissingStub: _i5.Future<void>.value(),
           )
