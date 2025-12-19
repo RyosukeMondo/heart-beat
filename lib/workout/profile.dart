@@ -6,11 +6,13 @@ class WorkoutProfile {
   final int age; // years
   final Gender gender;
   final int? restingHr; // bpm (optional, for Karvonen)
+  final int intensityOffset; // % offset
 
   const WorkoutProfile({
     required this.age,
     required this.gender,
     this.restingHr,
+    this.intensityOffset = 0,
   });
 
   // Max HR estimates
@@ -26,9 +28,10 @@ class WorkoutProfile {
   // Zone definitions based on %Max HR per specs: Z1:50-60, Z2:60-70, Z3:70-80, Z4:80-90, Z5:90-100
   Map<int, (int lower, int upper)> zonesByMax() {
     final m = effectiveMaxHr();
+    final offset = intensityOffset / 100.0;
     (int, int) p(double lo, double hi) {
-      final lower = (m * lo).round();
-      final upper = (m * hi).round();
+      final lower = (m * (lo + offset)).round();
+      final upper = (m * (hi + offset)).round();
       return (lower, math.max(lower + 1, upper));
     }
     return {
@@ -45,10 +48,11 @@ class WorkoutProfile {
     if (restingHr == null) return null;
     final r = restingHr!.clamp(30, 120);
     final max = effectiveMaxHr();
+    final offset = intensityOffset / 100.0;
     // Build as with byMax but computing both bounds directly
     (int, int) pp(double lo, double hi) {
-      final lower = ((max - r) * lo + r).round();
-      final upper = ((max - r) * hi + r).round();
+      final lower = ((max - r) * (lo + offset) + r).round();
+      final upper = ((max - r) * (hi + offset) + r).round();
       return (lower, math.max(lower + 1, upper));
     }
     return {

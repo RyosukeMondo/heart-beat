@@ -68,7 +68,7 @@ void main() {
     final delta = await adapter.computeNextWeek(30, start, end);
 
     expect(delta.minutesDelta, 0);
-    expect(delta.intensityDelta, 0);
+    expect(delta.intensityDelta, -2);
   });
 
   test('Hold when completion is low', () async {

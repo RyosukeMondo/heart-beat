@@ -13,6 +13,8 @@ class WorkoutSettings extends ChangeNotifier {
   Gender gender = Gender.other;
   int? restingHr;
   WorkoutType selected = WorkoutType.fatBurn;
+  int dailyTargetMinutes = 30;
+  int intensityOffset = 0; // % offset for zones
   
   // Custom workout configurations
   List<WorkoutConfig> _customConfigs = [];
@@ -22,6 +24,8 @@ class WorkoutSettings extends ChangeNotifier {
   static const _kGender = 'workout.gender';
   static const _kRest = 'workout.restingHr';
   static const _kSelected = 'workout.selected';
+  static const _kTargetMins = 'workout.targetMinutes';
+  static const _kIntensityOffset = 'workout.intensityOffset';
   static const _kCustomConfigs = 'workout.customConfigs';
   static const _kSelectedCustom = 'workout.selectedCustom';
 
@@ -43,6 +47,8 @@ class WorkoutSettings extends ChangeNotifier {
         orElse: () => selected,
       );
     }
+    dailyTargetMinutes = p.getInt(_kTargetMins) ?? dailyTargetMinutes;
+    intensityOffset = p.getInt(_kIntensityOffset) ?? intensityOffset;
     
     // Load custom workout configurations
     final customConfigsJson = p.getString(_kCustomConfigs);
@@ -74,6 +80,8 @@ class WorkoutSettings extends ChangeNotifier {
       await p.setInt(_kRest, restingHr!.clamp(30, 120));
     }
     await p.setString(_kSelected, selected.name);
+    await p.setInt(_kTargetMins, dailyTargetMinutes);
+    await p.setInt(_kIntensityOffset, intensityOffset);
     
     // Save custom workout configurations
     final customConfigsJson = json.encode(
@@ -88,13 +96,24 @@ class WorkoutSettings extends ChangeNotifier {
       await p.remove(_kSelectedCustom);
     }
   }
+  WorkoutProfile get profile => WorkoutProfile(
+    age: age, 
+    gender: gender, 
+    restingHr: restingHr,
+    intensityOffset: intensityOffset,
+  );
 
-  WorkoutProfile get profile => WorkoutProfile(age: age, gender: gender, restingHr: restingHr);
-
-  Future<void> updateProfile({int? age, Gender? gender, int? restingHr}) async {
+  Future<void> updateProfile({int? age, Gender? gender, int? restingHr, int? intensityOffset}) async {
     if (age != null) this.age = age.clamp(5, 100);
     if (gender != null) this.gender = gender;
+    if (intensityOffset != null) this.intensityOffset = intensityOffset;
     this.restingHr = restingHr; // allow null
+    await _save();
+    notifyListeners();
+  }
+  
+  Future<void> updateTargetMinutes(int minutes) async {
+    dailyTargetMinutes = minutes.clamp(5, 120);
     await _save();
     notifyListeners();
   }
