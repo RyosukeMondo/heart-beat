@@ -13,6 +13,8 @@ class ProfileForm extends StatelessWidget {
   final Map<int, (int, int)> zones;
   final ValueChanged<Gender?> onGenderChanged;
   final ValueChanged<WorkoutType> onWorkoutSelected;
+  final int dailyTargetMinutes;
+  final ValueChanged<int> onTargetMinutesChanged;
   final VoidCallback onReset;
   final VoidCallback onSave;
 
@@ -26,8 +28,10 @@ class ProfileForm extends StatelessWidget {
     required this.customConfigName,
     required this.profile,
     required this.zones,
+    required this.dailyTargetMinutes,
     required this.onGenderChanged,
     required this.onWorkoutSelected,
+    required this.onTargetMinutesChanged,
     required this.onReset,
     required this.onSave,
   });
@@ -73,6 +77,19 @@ class ProfileForm extends StatelessWidget {
           ),
           keyboardType: TextInputType.number,
         ),
+        const SizedBox(height: 16),
+        const Text('Daily Target (minutes)',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        Slider(
+          value: dailyTargetMinutes.toDouble(),
+          min: 5,
+          max: 120,
+          divisions: 23,
+          label: '$dailyTargetMinutes mins',
+          onChanged: (v) => onTargetMinutesChanged(v.round()),
+        ),
+        Center(child: Text('$dailyTargetMinutes minutes', style: const TextStyle(fontWeight: FontWeight.bold))),
         const SizedBox(height: 16),
         const Text('Default Workout Type',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),

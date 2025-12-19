@@ -91,11 +91,28 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
 
   @override
   Widget build(BuildContext context) {
-    final settings = p.Provider.of<PlayerSettings>(context);
+    final playerSettings = ref.watch(playerSettingsProvider);
+    final coachingState = ref.watch(coachingControllerProvider);
     _applyDebugLog();
 
+    // Listen to coaching state for playback rate updates
+    ref.listen<CoachingState>(coachingControllerProvider, (prev, next) {
+      if (next.currentBpm > 0) {
+        _onBpm(next.currentBpm, playerSettings);
+      }
+    });
+
     return Scaffold(
-      appBar: AppBar(title: const Text('YouTube x Heart Rate')),
+      appBar: AppBar(
+        title: const Text('YouTube x Heart Rate'),
+        actions: [
+          IconButton(
+            icon: Icon(_showOverlay ? Icons.visibility : Icons.visibility_off),
+            onPressed: () => setState(() => _showOverlay = !_showOverlay),
+            tooltip: 'Toggle Overlay',
+          ),
+        ],
+      ),
       body: Column(
         children: [
           Expanded(
@@ -124,32 +141,34 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                     );
                   },
                 ),
-                HeartRateOverlay(
-                  currentBpm: _currentBpm,
-                  ema: _ema,
-                  showOverlay: _showOverlay,
-                ),
-                ConnectionStatusOverlay(
-                  isConnected: _bleConnected,
-                  deviceName: _deviceName,
-                  playbackRate: _currentPlaybackRate,
-                  isReady: _ytReady,
-                ),
+                if (_showOverlay) ...[
+                  // New ZoneMeter overlay (mini version)
+                  Positioned(
+                    top: 16,
+                    left: 16,
+                    child: _buildMiniZoneMeter(coachingState),
+                  ),
+                  // DailyChargeBar overlay at bottom
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: Container(
+                      color: Colors.black.withOpacity(0.6),
+                      child: const DailyChargeBar(),
+                    ),
+                  ),
+                  ConnectionStatusOverlay(
+                    isConnected: coachingState.currentBpm > 0 && !coachingState.reconnecting,
+                    deviceName: _deviceName,
+                    playbackRate: _currentPlaybackRate,
+                    isReady: _ytReady,
+                  ),
+                ],
               ],
             ),
           ),
           const Divider(height: 1),
-          StreamBuilder<int>(
-            stream: ref.watch(bleServiceProvider).heartRateStream,
-            builder: (context, snap) {
-              if (snap.hasData) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  _onBpm(snap.data!, settings);
-                });
-              }
-              return const SizedBox.shrink();
-            },
-          ),
           PlayerControls(
             urlController: _urlCtl,
             onLoad: _onLoadUrl,
@@ -158,7 +177,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                 "(function(){ if (typeof reportRate==='function'){ reportRate(); } })();",
               );
             },
-            currentBpm: _currentBpm,
+            currentBpm: coachingState.currentBpm,
             ema: _ema,
             playbackRate: _currentPlaybackRate,
             isReady: _ytReady,
@@ -173,7 +192,55 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
             },
             showOverlay: _showOverlay,
             onShowOverlayChanged: (v) => setState(() => _showOverlay = v),
-            playerSettings: settings,
+            playerSettings: playerSettings,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMiniZoneMeter(CoachingState state) {
+    Color color;
+    IconData icon;
+    switch (state.cue) {
+      case ZoneCue.up:
+        color = Colors.blue;
+        icon = Icons.arrow_upward;
+        break;
+      case ZoneCue.keep:
+        color = Colors.green;
+        icon = Icons.check_circle_outline;
+        break;
+      case ZoneCue.down:
+        color = Colors.red;
+        icon = Icons.arrow_downward;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.7),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color, width: 2),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 24),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${state.currentBpm} BPM',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              Text(
+                state.cue.name.toUpperCase(),
+                style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 10),
+              ),
+            ],
           ),
         ],
       ),

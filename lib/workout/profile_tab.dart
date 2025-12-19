@@ -17,6 +17,7 @@ class _ProfileTabState extends State<ProfileTab> {
   final _restCtl = TextEditingController();
   Gender _gender = Gender.other;
   WorkoutType _selected = WorkoutType.fatBurn;
+  int _targetMinutes = 30;
 
   @override
   void initState() {
@@ -26,6 +27,7 @@ class _ProfileTabState extends State<ProfileTab> {
     _restCtl.text = w.restingHr?.toString() ?? '';
     _gender = w.gender;
     _selected = w.selected;
+    _targetMinutes = w.dailyTargetMinutes;
   }
 
   @override
@@ -54,11 +56,13 @@ class _ProfileTabState extends State<ProfileTab> {
       customConfigName: w.selectedCustomConfig?.name,
       profile: profile,
       zones: zones,
+      dailyTargetMinutes: _targetMinutes,
       onGenderChanged: (v) => setState(() => _gender = v ?? Gender.other),
       onWorkoutSelected: (t) => setState(() {
         _selected = t;
         context.read<WorkoutSettings>().clearCustomWorkoutSelection();
       }),
+      onTargetMinutesChanged: (v) => setState(() => _targetMinutes = v),
       onReset: () {
         final ww = context.read<WorkoutSettings>();
         setState(() {
@@ -66,12 +70,14 @@ class _ProfileTabState extends State<ProfileTab> {
           _restCtl.text = ww.restingHr?.toString() ?? '';
           _gender = ww.gender;
           _selected = ww.selected;
+          _targetMinutes = ww.dailyTargetMinutes;
         });
       },
       onSave: () async {
         final age = int.tryParse(_ageCtl.text) ?? w.age;
         final rest = int.tryParse(_restCtl.text);
         await w.updateProfile(age: age, gender: _gender, restingHr: rest);
+        await w.updateTargetMinutes(_targetMinutes);
         if (!w.isUsingCustomConfig) {
           await w.selectWorkout(_selected);
         }

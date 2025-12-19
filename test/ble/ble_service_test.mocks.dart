@@ -28,13 +28,15 @@ import 'package:mockito/mockito.dart' as _i1;
 ///
 /// See the documentation for Mockito's code generation for more information.
 class MockBleService extends _i1.Mock implements _i2.BleService {
+  MockBleService() {
+    _i1.throwOnMissingStub(this);
+  }
+
   @override
   _i3.Stream<_i4.BleConnectionState> get connectionStateStream =>
       (super.noSuchMethod(
             Invocation.getter(#connectionStateStream),
             returnValue: _i3.Stream<_i4.BleConnectionState>.empty(),
-            returnValueForMissingStub:
-                _i3.Stream<_i4.BleConnectionState>.empty(),
           )
           as _i3.Stream<_i4.BleConnectionState>);
 
@@ -43,7 +45,6 @@ class MockBleService extends _i1.Mock implements _i2.BleService {
       (super.noSuchMethod(
             Invocation.getter(#heartRateStream),
             returnValue: _i3.Stream<int>.empty(),
-            returnValueForMissingStub: _i3.Stream<int>.empty(),
           )
           as _i3.Stream<int>);
 
@@ -52,26 +53,17 @@ class MockBleService extends _i1.Mock implements _i2.BleService {
       (super.noSuchMethod(
             Invocation.getter(#connectionState),
             returnValue: _i4.BleConnectionState.idle,
-            returnValueForMissingStub: _i4.BleConnectionState.idle,
           )
           as _i4.BleConnectionState);
 
   @override
   bool get isConnected =>
-      (super.noSuchMethod(
-            Invocation.getter(#isConnected),
-            returnValue: false,
-            returnValueForMissingStub: false,
-          )
+      (super.noSuchMethod(Invocation.getter(#isConnected), returnValue: false)
           as bool);
 
   @override
   bool get isSupported =>
-      (super.noSuchMethod(
-            Invocation.getter(#isSupported),
-            returnValue: false,
-            returnValueForMissingStub: false,
-          )
+      (super.noSuchMethod(Invocation.getter(#isSupported), returnValue: false)
           as bool);
 
   @override
@@ -90,7 +82,6 @@ class MockBleService extends _i1.Mock implements _i2.BleService {
       (super.noSuchMethod(
             Invocation.method(#scanAndConnect, [], {#timeout: timeout}),
             returnValue: _i3.Future<_i4.DeviceInfo?>.value(),
-            returnValueForMissingStub: _i3.Future<_i4.DeviceInfo?>.value(),
           )
           as _i3.Future<_i4.DeviceInfo?>);
 
@@ -119,9 +110,6 @@ class MockBleService extends _i1.Mock implements _i2.BleService {
             returnValue: _i3.Future<List<_i4.DeviceInfo>>.value(
               <_i4.DeviceInfo>[],
             ),
-            returnValueForMissingStub: _i3.Future<List<_i4.DeviceInfo>>.value(
-              <_i4.DeviceInfo>[],
-            ),
           )
           as _i3.Future<List<_i4.DeviceInfo>>);
 
@@ -137,7 +125,6 @@ class MockBleService extends _i1.Mock implements _i2.BleService {
               {#timeout: timeout},
             ),
             returnValue: _i3.Future<_i4.DeviceInfo?>.value(),
-            returnValueForMissingStub: _i3.Future<_i4.DeviceInfo?>.value(),
           )
           as _i3.Future<_i4.DeviceInfo?>);
 
@@ -146,7 +133,6 @@ class MockBleService extends _i1.Mock implements _i2.BleService {
       (super.noSuchMethod(
             Invocation.method(#checkAndRequestPermissions, []),
             returnValue: _i3.Future<bool>.value(false),
-            returnValueForMissingStub: _i3.Future<bool>.value(false),
           )
           as _i3.Future<bool>);
 

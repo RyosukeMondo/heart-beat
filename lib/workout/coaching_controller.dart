@@ -13,7 +13,7 @@ final bleServiceProvider = Provider<BleService>((ref) => BleService());
 
 final coachingControllerProvider = StateNotifierProvider<CoachingController, CoachingState>((ref) {
   final bleService = ref.watch(bleServiceProvider);
-  final workoutSettings = ref.watch(workoutSettingsProvider);
+  final workoutSettings = ref.read(workoutSettingsProvider);
   return CoachingController(bleService, workoutSettings);
 });
 

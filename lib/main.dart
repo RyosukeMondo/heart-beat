@@ -114,6 +114,23 @@ class _CoachingPageState extends ConsumerState<CoachingPage> {
            const Spacer(),
            const Center(child: ZoneMeter()),
            const Spacer(),
+           Padding(
+             padding: const EdgeInsets.symmetric(horizontal: 20),
+             child: OutlinedButton.icon(
+               onPressed: () {
+                 Navigator.of(context).push(
+                   MaterialPageRoute(builder: (_) => const PlayerPage()),
+                 );
+               },
+               icon: const Icon(Icons.ondemand_video_rounded),
+               label: const Text('YouTube プレイヤー (心拍連動)'),
+               style: OutlinedButton.styleFrom(
+                 padding: const EdgeInsets.symmetric(vertical: 12),
+                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+               ),
+             ),
+           ),
+           const SizedBox(height: 24),
            CoachingControls(
              controller: controller,
              state: coachingState,
