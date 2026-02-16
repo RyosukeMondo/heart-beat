@@ -1,5 +1,4 @@
 import 'dart:developer' as developer;
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import 'ble_types.dart';
@@ -30,8 +29,8 @@ class BleLogger {
   }
   
   /// Log warning
-  static void warning(String component, String message, {Map<String, dynamic>? data}) {
-    _log(BleLogLevel.warning, component, message, data: data);
+  static void warning(String component, String message, {Exception? exception, Map<String, dynamic>? data}) {
+    _log(BleLogLevel.warning, component, message, exception: exception, data: data);
   }
   
   /// Log error with optional exception
@@ -135,7 +134,6 @@ class BleLogger {
   static String exportLogs({String? component, BleLogLevel? minLevel}) {
     final buffer = StringBuffer();
     buffer.writeln('BLE Logs Export - ${DateTime.now().toIso8601String()}');
-    buffer.writeln('Platform: ${Platform.operatingSystem}');
     buffer.writeln('Debug Mode: $_debugMode');
     buffer.writeln('=' * 60);
     
@@ -304,7 +302,6 @@ class BleErrorReporter {
     
     // System information
     buffer.writeln('\nSystem Information:');
-    buffer.writeln('  Platform: ${Platform.operatingSystem}');
     buffer.writeln('  Debug Mode: ${kDebugMode}');
     
     return buffer.toString();

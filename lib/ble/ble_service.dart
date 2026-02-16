@@ -2,7 +2,6 @@
 // On web we will use flutter_web_bluetooth; on mobile/desktop we use flutter_blue_plus.
 
 import 'dart:async';
-import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'ble_types.dart';

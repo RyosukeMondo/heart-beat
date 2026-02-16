@@ -13,6 +13,8 @@ import 'ble_logger.dart';
 /// Uses Web Bluetooth API to connect to heart rate devices in browsers.
 /// Requires HTTPS or localhost for security restrictions.
 class BleServiceImplWeb extends BleService with BleServiceMixin {
+  BleServiceImplWeb() : super.protected();
+
   BluetoothDevice? _connectedDevice;
   BluetoothCharacteristic? _heartRateCharacteristic;
   StreamSubscription<ByteData>? _notificationSubscription;
@@ -92,7 +94,7 @@ class BleServiceImplWeb extends BleService with BleServiceMixin {
       await initializeIfNeeded();
       
       // Check if already connected
-      if (_connectedDevice != null && _connectedDevice!.connected) {
+      if (_connectedDevice != null && await _connectedDevice!.connected.first) {
         BleLogger.info('WebBLE', 'Already connected to device', data: {'deviceId': _connectedDevice!.id});
         return currentDevice;
       }
@@ -204,13 +206,15 @@ class BleServiceImplWeb extends BleService with BleServiceMixin {
 
       BleLogger.info('WebBLE', 'Successfully connected to device');
 
-      // Set up disconnect listener
-      device.disconnected.then((_) {
-        BleLogger.info('WebBLE', 'Device disconnected', data: {'deviceId': device.id});
-        updateConnectionState(BleConnectionState.disconnected);
-        updateCurrentDevice(null);
-        _connectedDevice = null;
-        _heartRateCharacteristic = null;
+      // Set up disconnect listener via connected stream
+      device.connected.listen((isConnected) {
+        if (!isConnected) {
+          BleLogger.info('WebBLE', 'Device disconnected', data: {'deviceId': device.id});
+          updateConnectionState(BleConnectionState.disconnected);
+          updateCurrentDevice(null);
+          _connectedDevice = null;
+          _heartRateCharacteristic = null;
+        }
       });
 
       // Discover services and characteristics

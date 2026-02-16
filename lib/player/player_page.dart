@@ -5,12 +5,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:provider/provider.dart' as p;
 
 import '../ble/ble_service.dart';
-import 'settings.dart';
+import '../providers.dart';
 import '../workout/coaching_controller.dart';
-import 'heart_rate_overlay.dart';
+import '../workout/coaching_state.dart';
+import '../workout/daily_charge_bar.dart';
 import 'connection_status_overlay.dart';
 import 'player_controls.dart';
 import 'player_webview.dart';
+import 'settings.dart';
 
 class PlayerPage extends ConsumerStatefulWidget {
   const PlayerPage({super.key});
