@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
-import '../player/settings.dart';
 import 'profile.dart';
 import 'workout_config.dart';
 
@@ -157,16 +156,12 @@ class WorkoutSettings extends ChangeNotifier {
     }
   }
 
-  // Apply current target range to PlayerSettings thresholds.
+  // Compute player target range from current target range.
   // Strategy: pauseBelow = lower-5, normalHigh = lower, linearHigh = upper
-  Future<void> applyToPlayer(PlayerSettings s) async {
+  ({int pauseBelow, int normalHigh, int linearHigh}) computePlayerTargetRange() {
     final (lo, hi) = targetRange();
     final pauseBelow = (lo - 5).clamp(40, lo);
-    await s.update(
-      pauseBelow: pauseBelow,
-      normalHigh: lo,
-      linearHigh: hi,
-    );
+    return (pauseBelow: pauseBelow, normalHigh: lo, linearHigh: hi);
   }
 
   // Custom WorkoutConfig Management Methods

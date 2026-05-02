@@ -186,7 +186,12 @@ class PlayerControls extends StatelessWidget {
             selected: selected,
             onSelected: (_) async {
               await workout.selectWorkout(t);
-              await workout.applyToPlayer(playerSettings);
+              final target = workout.computePlayerTargetRange();
+              await playerSettings.update(
+                pauseBelow: target.pauseBelow,
+                normalHigh: target.normalHigh,
+                linearHigh: target.linearHigh,
+              );
             },
           );
         }).toList(),

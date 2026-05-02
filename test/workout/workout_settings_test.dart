@@ -540,7 +540,7 @@ void main() {
     group('Integration with PlayerSettings', () {
       test('applies workout target range to player settings', () async {
         SharedPreferences.setMockInitialValues({});
-        
+
         // Create mock PlayerSettings
         final mockPlayerSettings = MockPlayerSettings();
         when(mockPlayerSettings.update(
@@ -553,7 +553,12 @@ void main() {
         workoutSettings.age = 30;
         workoutSettings.selected = WorkoutType.fatBurn;
 
-        await workoutSettings.applyToPlayer(mockPlayerSettings);
+        final target = workoutSettings.computePlayerTargetRange();
+        await mockPlayerSettings.update(
+          pauseBelow: target.pauseBelow,
+          normalHigh: target.normalHigh,
+          linearHigh: target.linearHigh,
+        );
 
         // Verify that update was called with appropriate values
         verify(mockPlayerSettings.update(
@@ -565,7 +570,7 @@ void main() {
 
       test('applies custom workout range to player settings', () async {
         SharedPreferences.setMockInitialValues({});
-        
+
         // Create mock PlayerSettings
         final mockPlayerSettings = MockPlayerSettings();
         when(mockPlayerSettings.update(
@@ -584,7 +589,12 @@ void main() {
         );
         await workoutSettings.selectCustomWorkout(config.id);
 
-        await workoutSettings.applyToPlayer(mockPlayerSettings);
+        final target = workoutSettings.computePlayerTargetRange();
+        await mockPlayerSettings.update(
+          pauseBelow: target.pauseBelow,
+          normalHigh: target.normalHigh,
+          linearHigh: target.linearHigh,
+        );
 
         // Verify the target range comes from custom config
         final (lower, upper) = workoutSettings.targetRange();
