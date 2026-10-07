@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'networking_service.dart';
-import 'models/models.dart';
+import 'models/models.dart' hide GameState, GameConfig, PlayerScore, GameResult;
 import 'games/base_game.dart';
 import 'games/instant_response_game.dart';
 import 'games/resilience_game.dart';
